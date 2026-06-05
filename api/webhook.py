@@ -2,31 +2,32 @@ import os
 import requests
 import telebot
 from flask import Flask, request
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False) # Vercel မှာ Thread မရလို့ False ထားရပါမည်
+bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 
-# Telegram ဘက်က လှမ်းပို့မည့် Route
+# Telegram Webhook ဝင်ပေါက်
 @app.route('/api/webhook', methods=['POST'])
 def telegram_webhook():
     if request.headers.get('content-type') == 'application/json':
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
-        return '', 200
+        return 'OK', 200
     else:
         return 'Invalid Request', 403
 
+# /start နှင့် /help Commands (မြန်ဆန်စေရန် ရိုးရိုးစာသားဖြင့်သာ ပြန်သည်)
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        bot.reply_to(message, "👋 မင်္ဂလာပါ သယ်ရင်း။ TikTok Link ပို့ပေးပါ၊ Watermark ဖြုတ်ပေးပါမယ်။ (Vercel Webhook စနစ်)")
+        bot.send_message(message.chat.id, "👋 မင်္ဂလာပါ သယ်ရင်း။ TikTok Link ပို့ပေးပါ၊ Watermark ဖြုတ်ပေးပါမယ်။")
     except Exception as e:
-        print(f"Start Error: {e}")
+        print(f"Welcome Error: {e}")
 
+# TikTok Links များအား ဖမ်းယူခြင်း
 @bot.message_handler(func=lambda message: True)
 def handle_tiktok_download(message):
     original_link = message.text.strip()
@@ -41,36 +42,39 @@ def handle_tiktok_download(message):
         title = "TikTok Video"
 
         try:
-            # လမ်းကြောင်း ၁ - TikWM API တိုက်ရိုက်ပို့ခြင်း
+            # လမ်းကြောင်း ၁ - TikWM API သို့ တိုက်ရိုက်ပစ်ထည့်ခြင်း (Fastest)
             try:
                 api_url = "https://www.tikwm.com/api/"
-                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, timeout=10).json()
+                # Vercel ထဲတွင် အချိန်မကုန်စေရန် timeout ကို ၅ စက္ကန့်သာ ထားသည်
+                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, timeout=5).json()
                 if resp_api.get('code') == 0:
                     data = resp_api.get('data', {})
                     video_url = data.get('play')
                     title = data.get('title', 'TikTok Video')
             except Exception as e:
-                print(f"API 1 Error: {e}")
+                print(f"Primary API Error: {e}")
 
-            # လမ်းကြောင်း ၂ - Tmate API အရန်စနစ်
+            # လမ်းကြောင်း ၂ - Tmate API (Backup)
             if not video_url:
                 try:
                     backup_url = f"https://api.tmate.to/download?url={original_link}"
-                    resp_backup = requests.get(backup_url, timeout=10).json()
+                    resp_backup = requests.get(backup_url, timeout=4).json()
                     if resp_backup.get('success') or 'data' in resp_backup:
                         video_url = resp_backup.get('data', {}).get('video_hd') or resp_backup.get('data', {}).get('video')
                         title = resp_backup.get('data', {}).get('title') or title
                 except Exception as e:
-                    print(f"API 2 Error: {e}")
+                    print(f"Backup API Error: {e}")
             
-            # ဗီဒီယို ပို့ခြင်း
+            # ဗီဒီယို ပြန်လည်ပေးပို့ခြင်း လုပ်ငန်းစဉ်
             if video_url:
+                from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
                 markup = InlineKeyboardMarkup(row_width=2)
                 markup.add(InlineKeyboardButton("🔗 View Original", url=original_link))
                 markup.add(InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
                            InlineKeyboardButton("👤 Admin Fb Acc", url="https://www.facebook.com/share/17c7QqLEUA/"))
                 
-                bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Powered by Vercel Webhook", reply_markup=markup)
+                # ⚠️ Vercel ပေါ်တွင် bot.get_me().username ခေါ်ယူခြင်းကို အချိန်ကုန်သက်သာစေရန် ဖယ်ရှားထားသည်
+                bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Powered by Webhook Bot", reply_markup=markup)
                 
                 try:
                     bot.delete_message(message.chat.id, message.message_id)
@@ -78,16 +82,16 @@ def handle_tiktok_download(message):
                 except:
                     pass
             else:
-                bot.edit_message_text("❌ ဗီဒီယို လင့်ခ်မှားနေပုံရသည်။ သို့မဟုတ် ခဏနေမှ ပြန်စမ်းကြည့်ပါ။", message.chat.id, msg.message_id)
+                bot.edit_message_text("❌ ဗီဒီယို ဆွဲမရဖြစ်နေသည်။ ခဏနေမှ ပြန်စမ်းကြည့်ပါ။", message.chat.id, msg.message_id)
         
         except Exception as e:
+            print(f"Process Error: {e}")
             try:
-                bot.edit_message_text("⚠️ Server Error တက်သွားသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
+                bot.edit_message_text("⚠️ Server အလုပ်များနေသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
             except:
                 pass
 
-# Vercel Serverless အတွက် အဓိက ဝင်ပေါက်
 @app.route('/')
 def index():
-    return "Webhook Server is Active!"
-                  
+    return "TikTok Bot Webhook Server is Running Smoothly!"
+                    
