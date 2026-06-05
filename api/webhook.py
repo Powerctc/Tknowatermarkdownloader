@@ -8,18 +8,21 @@ app = Flask(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 
-# Telegram Webhook ဝင်ပေါက်
-@app.route('/api/webhook', methods=['POST'])
+# 🎯 အဓိက ဝင်ပေါက် - Telegram က လှမ်းပို့သမျှ POST စာတွေ အကုန် ဒီမှာ ဖမ်းမည်
+@app.route('/', methods=['GET', 'POST'])
 def telegram_webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return 'OK', 200
+    if request.method == 'POST':
+        if request.headers.get('content-type') == 'application/json':
+            json_string = request.get_data().decode('utf-8')
+            update = telebot.types.Update.de_json(json_string)
+            bot.process_new_updates([update])
+            return 'OK', 200
+        return 'Invalid JSON', 400
     else:
-        return 'Invalid Request', 403
+        # GET Method ဖြင့် ဝင်ကြည့်လျှင် Browser တွင် ဤစာသား ပြမည်
+        return "TikTok Bot Webhook Server is Running Smoothly!"
 
-# /start နှင့် /help Commands (မြန်ဆန်စေရန် ရိုးရိုးစာသားဖြင့်သာ ပြန်သည်)
+# /start နှင့် /help Commands
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
@@ -42,11 +45,10 @@ def handle_tiktok_download(message):
         title = "TikTok Video"
 
         try:
-            # လမ်းကြောင်း ၁ - TikWM API သို့ တိုက်ရိုက်ပစ်ထည့်ခြင်း (Fastest)
+            # လမ်းကြောင်း ၁ - TikWM API
             try:
                 api_url = "https://www.tikwm.com/api/"
-                # Vercel ထဲတွင် အချိန်မကုန်စေရန် timeout ကို ၅ စက္ကန့်သာ ထားသည်
-                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, timeout=5).json()
+                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, timeout=6).json()
                 if resp_api.get('code') == 0:
                     data = resp_api.get('data', {})
                     video_url = data.get('play')
@@ -58,14 +60,14 @@ def handle_tiktok_download(message):
             if not video_url:
                 try:
                     backup_url = f"https://api.tmate.to/download?url={original_link}"
-                    resp_backup = requests.get(backup_url, timeout=4).json()
+                    resp_backup = requests.get(backup_url, timeout=5).json()
                     if resp_backup.get('success') or 'data' in resp_backup:
                         video_url = resp_backup.get('data', {}).get('video_hd') or resp_backup.get('data', {}).get('video')
                         title = resp_backup.get('data', {}).get('title') or title
                 except Exception as e:
                     print(f"Backup API Error: {e}")
             
-            # ဗီဒီယို ပြန်လည်ပေးပို့ခြင်း လုပ်ငန်းစဉ်
+            # ဗီဒီယို ပြန်လည်ပေးပို့ခြင်း
             if video_url:
                 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
                 markup = InlineKeyboardMarkup(row_width=2)
@@ -73,7 +75,6 @@ def handle_tiktok_download(message):
                 markup.add(InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
                            InlineKeyboardButton("👤 Admin Fb Acc", url="https://www.facebook.com/share/17c7QqLEUA/"))
                 
-                # ⚠️ Vercel ပေါ်တွင် bot.get_me().username ခေါ်ယူခြင်းကို အချိန်ကုန်သက်သာစေရန် ဖယ်ရှားထားသည်
                 bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Powered by Webhook Bot", reply_markup=markup)
                 
                 try:
@@ -85,13 +86,8 @@ def handle_tiktok_download(message):
                 bot.edit_message_text("❌ ဗီဒီယို ဆွဲမရဖြစ်နေသည်။ ခဏနေမှ ပြန်စမ်းကြည့်ပါ။", message.chat.id, msg.message_id)
         
         except Exception as e:
-            print(f"Process Error: {e}")
             try:
                 bot.edit_message_text("⚠️ Server အလုပ်များနေသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
             except:
                 pass
-
-@app.route('/')
-def index():
-    return "TikTok Bot Webhook Server is Running Smoothly!"
-                    
+            
