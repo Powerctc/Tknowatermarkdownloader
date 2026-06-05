@@ -2,13 +2,14 @@ import os
 import requests
 import telebot
 from flask import Flask, request
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 
-# 🎯 အဓိက ဝင်ပေါက် - Telegram က လှမ်းပို့သမျှ POST စာတွေ အကုန် ဒီမှာ ဖမ်းမည်
+# 🎯 Telegram Webhook ဝင်ပေါက်
 @app.route('/', methods=['GET', 'POST'])
 def telegram_webhook():
     if request.method == 'POST':
@@ -19,18 +20,37 @@ def telegram_webhook():
             return 'OK', 200
         return 'Invalid JSON', 400
     else:
-        # GET Method ဖြင့် ဝင်ကြည့်လျှင် Browser တွင် ဤစာသား ပြမည်
         return "TikTok Bot Webhook Server is Running Smoothly!"
 
-# /start နှင့် /help Commands
+# 🌟 Welcome Message (/start) ကို အသစ်ပြန်ပြင်ဆင်ထားသော နေရာ
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        bot.send_message(message.chat.id, "👋 မင်္ဂလာပါ သယ်ရင်း။ TikTok Link ပို့ပေးပါ၊ Watermark ဖြုတ်ပေးပါမယ်။")
+        # လှပသပ်ရပ်သော Welcome စာသားပုံစံ
+        welcome_text = (
+            "👋 **မင်္ဂလာပါ သယ်ရင်းရေ...**\n\n"
+            "🚀 **TikTok No Watermark Downloader Bot** မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n\n"
+            "📌 **အသုံးပြုနည်းကတော့ အရမ်းရိုးရှင်းပါတယ် -**\n"
+            "၁။ TikTok ထဲက ကြိုက်တဲ့ ဗီဒီယိုလင့်ခ်ကို ကူးယူပါ (Copy Link)။\n"
+            "၂။ ဒီ Chat ထဲကို လင့်ခ် တိုက်ရိုက် လှမ်းပို့လိုက်ပါ (Paste & Send)။\n"
+            "၃။ စက္ကန့်ပိုင်းအတွင်း Watermark မပါတဲ့ HD ဗီဒီယိုကို ချက်ချင်း ရရှိပါလိမ့်မယ်။\n\n"
+            "🤖 _Powered by Vercel Webhook (24/7 Lightning Fast)_"
+        )
+        
+        # စာသားအောက်တွင် ပြသမည့် ခလုတ်များ
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
+            InlineKeyboardButton("👤 Developer Acc", url="https://www.facebook.com/share/17c7QqLEUA/")
+        )
+        
+        # Markdown စနစ်ဖြင့် စာသားများကို အထူ/အစောင်း လှမ်းလုပ်ပြီး ပို့ခြင်း
+        bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+        
     except Exception as e:
         print(f"Welcome Error: {e}")
 
-# TikTok Links များအား ဖမ်းယူခြင်း
+# 🎬 TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း
 @bot.message_handler(func=lambda message: True)
 def handle_tiktok_download(message):
     original_link = message.text.strip()
@@ -69,7 +89,6 @@ def handle_tiktok_download(message):
             
             # ဗီဒီယို ပြန်လည်ပေးပို့ခြင်း
             if video_url:
-                from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
                 markup = InlineKeyboardMarkup(row_width=2)
                 markup.add(InlineKeyboardButton("🔗 View Original", url=original_link))
                 markup.add(InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
@@ -90,4 +109,4 @@ def handle_tiktok_download(message):
                 bot.edit_message_text("⚠️ Server အလုပ်များနေသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
             except:
                 pass
-            
+                
