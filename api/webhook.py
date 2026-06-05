@@ -94,7 +94,7 @@ def handle_tiktok_download(message):
                 markup.add(InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
                            InlineKeyboardButton("👤 Admin Fb Acc", url="https://www.facebook.com/share/17c7QqLEUA/"))
                 
-                bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Powered by Webhook Bot", reply_markup=markup)
+                bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Powered by Foreverstudy", reply_markup=markup)
                 
                 try:
                     bot.delete_message(message.chat.id, message.message_id)
