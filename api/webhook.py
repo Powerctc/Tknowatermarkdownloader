@@ -92,7 +92,7 @@ def handle_tiktok_download(message):
                 markup = InlineKeyboardMarkup(row_width=2)
                 markup.add(InlineKeyboardButton("🔗 View Original", url=original_link))
                 markup.add(InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
-                           InlineKeyboardButton("👤 Admin Fb Acc", url="https://www.facebook.com/share/17c7QqLEUA/"))
+                           InlineKeyboardButton("👤 Admin Fb Acc", url="https://www.facebook.com/share/p/1beY6aEAqN/"))
                 
                 bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Powered by Foreverstudy", reply_markup=markup)
                 
