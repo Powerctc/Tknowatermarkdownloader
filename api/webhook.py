@@ -36,7 +36,22 @@ def send_welcome(message):
             "၃။ စက္ကန့်ပိုင်းအတွင်း Watermark မပါတဲ့ HD ဗီဒီယိုကို ချက်ချင်း ရရှိပါလိမ့်မယ်။\n\n"
             "🤖 _Powered by Vercel Webhook (24/7 Lightning Fast)_"
         )
+        # 🆕 New Member ဝင်လာလျှင် Welcome Message ပို့ပေးခြင်း
+@bot.message_handler(content_types=['new_chat_members'])
+def welcome_new_member(message):
+    for new_member in message.new_chat_members:
+        # Welcome message ပုံစံ
+        text = (
+            f"👋 မင်္ဂလာပါ {new_member.first_name} ရေ!\n\n"
+            f"TikTok No Watermark Downloader Group သို့ ကြိုဆိုပါတယ်ဗျာ။\n"
+            f"ဗီဒီယို ဒေါင်းလုဒ်ဆွဲဖို့ အောက်ကခလုတ်ကို နှိပ်ပြီး Bot ကို စတင်လိုက်ပါဦး။"
+        )
         
+        # Bot စတင်ရန် ခလုတ်
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🤖 Bot စတင်ရန် (/start)", url=f"https://t.me/{bot.get_me().username}?start=start"))
+        
+        bot.send_message(message.chat.id, text, reply_markup=markup)
         # စာသားအောက်တွင် ပြသမည့် ခလုတ်များ
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
