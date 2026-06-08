@@ -7,8 +7,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-# Vercel ပေါ်တွင် ပိုမိုငြိမ်သက်စေရန် threaded=True ပြောင်းလဲထားပါသည်
-bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
+bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 
 # 🎯 Telegram Webhook ဝင်ပေါက်
 @app.route('/', methods=['GET', 'POST'])
@@ -23,53 +22,37 @@ def telegram_webhook():
     else:
         return "TikTok Bot Webhook Server is Running Smoothly!"
 
-# 🌟 1. Welcome Message (/start) HTML Mode
+# 🌟 Welcome Message (/start) ကို အသစ်ပြန်ပြင်ဆင်ထားသော နေရာ
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
+        # လှပသပ်ရပ်သော Welcome စာသားပုံစံ
         welcome_text = (
-            "👋 <b>မင်္ဂလာပါ သယ်ရင်းရေ...</b>\n\n"
-            "🚀 <b>TikTok No Watermark Downloader Bot</b> မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n\n"
-            "📌 <b>အသုံးပြုနည်းကတော့ အရမ်းရိုးရှင်းပါတယ် -</b>\n"
+            "👋 **မင်္ဂလာပါ သယ်ရင်းရေ...**\n\n"
+            "🚀 **TikTok No Watermark Downloader Bot** မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n\n"
+            "📌 **အသုံးပြုနည်းကတော့ အရမ်းရိုးရှင်းပါတယ် -**\n"
             "၁။ TikTok ထဲက ကြိုက်တဲ့ ဗီဒီယိုလင့်ခ်ကို ကူးယူပါ (Copy Link)။\n"
             "၂။ ဒီ Chat ထဲကို လင့်ခ် တိုက်ရိုက် လှမ်းပို့လိုက်ပါ (Paste & Send)။\n"
             "၃။ စက္ကန့်ပိုင်းအတွင်း Watermark မပါတဲ့ HD ဗီဒီယိုကို ချက်ချင်း ရရှိပါလိမ့်မယ်။\n\n"
-            "🤖 <i>Powered by Vercel Webhook (24/7 Lightning Fast)</i>"
+            "🤖 _Powered by Vercel Webhook (24/7 Lightning Fast)_"
         )
         
+        # စာသားအောက်တွင် ပြသမည့် ခလုတ်များ
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
             InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
             InlineKeyboardButton("👤 Developer Acc", url="https://www.facebook.com/share/17c7QqLEUA/")
         )
-        bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=markup)
+        
+        # Markdown စနစ်ဖြင့် စာသားများကို အထူ/အစောင်း လှမ်းလုပ်ပြီး ပို့ခြင်း
+        bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+        
     except Exception as e:
         print(f"Welcome Error: {e}")
 
-# 🆕 2. New Member Join Handler (Group နှုတ်ဆက်ခြင်းစနစ်)
-@bot.message_handler(content_types=['new_chat_members'])
-def welcome_new_member(message):
-    try:
-        for new_member in message.new_chat_members:
-            text = (
-                f"👋 <b>မင်္ဂလာပါ {new_member.first_name} ရေ...</b>\n\n"
-                f"TikTok No Watermark Downloader Group မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n"
-                f"ဗီဒီယိုဒေါင်းဖို့အတွက် အောက်ကခလုတ်ကိုနှိပ်ပြီး Bot ကို စတင်လိုက်ပါဦး။"
-            )
-            markup = InlineKeyboardMarkup()
-            bot_user = bot.get_me().username
-            markup.add(InlineKeyboardButton("🤖 Bot စတင်ရန် (/start)", url=f"https://t.me/{bot_user}?start=start"))
-            bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=markup)
-    except Exception as e:
-        print(f"Welcome Member Error: {e}")
-
-# 🎬 3. TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း
+# 🎬 TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း
 @bot.message_handler(func=lambda message: True)
 def handle_tiktok_download(message):
-    # စာသားမဟုတ်လျှင် သို့မဟုတ် Command (/) ဖြစ်နေလျှင် ဒေါင်းလုဒ်မဆွဲဘဲ ကျော်သွားရန်
-    if not message.text or message.text.startswith('/'):
-        return
-
     original_link = message.text.strip()
     
     if "tiktok.com" in original_link:
@@ -80,17 +63,12 @@ def handle_tiktok_download(message):
 
         video_url = None
         title = "TikTok Video"
-        
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        }
 
         try:
-            # 💡 Vercel Timeout (10s) ကာကွယ်ရန် API တိုင်းကို timeout=3 စက္ကန့်စီသာ ကန့်သတ်ထားပါသည်
             # လမ်းကြောင်း ၁ - TikWM API
             try:
                 api_url = "https://www.tikwm.com/api/"
-                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, headers=headers, timeout=3).json()
+                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, timeout=6).json()
                 if resp_api.get('code') == 0:
                     data = resp_api.get('data', {})
                     video_url = data.get('play')
@@ -98,23 +76,11 @@ def handle_tiktok_download(message):
             except Exception as e:
                 print(f"Primary API Error: {e}")
 
-            # လမ်းကြောင်း ၂ - Tiklydown API (Backup 1)
-            if not video_url:
-                try:
-                    tikly_url = f"https://api.tiklydown.eu.org/api/download?url={original_link}"
-                    resp_tikly = requests.get(tikly_url, headers=headers, timeout=3).json()
-                    if 'data' in resp_tikly:
-                        v_data = resp_tikly.get('data', {})
-                        video_url = v_data.get('video', {}).get('noWatermark')
-                        title = v_data.get('title', title)
-                except Exception as e:
-                    print(f"Tiklydown API Error: {e}")
-
-            # လမ်းကြောင်း ၃ - Tmate API (Backup 2)
+            # လမ်းကြောင်း ၂ - Tmate API (Backup)
             if not video_url:
                 try:
                     backup_url = f"https://api.tmate.to/download?url={original_link}"
-                    resp_backup = requests.get(backup_url, headers=headers, timeout=3).json()
+                    resp_backup = requests.get(backup_url, timeout=5).json()
                     if resp_backup.get('success') or 'data' in resp_backup:
                         video_url = resp_backup.get('data', {}).get('video_hd') or resp_backup.get('data', {}).get('video')
                         title = resp_backup.get('data', {}).get('title') or title
@@ -143,9 +109,5 @@ def handle_tiktok_download(message):
                 bot.edit_message_text("⚠️ Server အလုပ်များနေသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
             except:
                 pass
-    else:
-        # TikTok လင့်ခ် မဟုတ်ဘဲ အခြားစာသားများ ပို့လာပါက လမ်းညွှန်ပေးရန်
-        try:
-            bot.reply_to(message, "💡 TikTok ဗီဒီယိုဒေါင်းလုဒ်ဆွဲရန်အတွက် ကျေးဇူးပြု၍ TikTok လင့်ခ်တစ်ခုခုကို ပို့ပေးပါ သယ်ရင်း။")
-        except:
-            pass
+
+                
