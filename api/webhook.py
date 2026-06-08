@@ -22,104 +22,63 @@ def telegram_webhook():
     else:
         return "TikTok Bot Webhook Server is Running Smoothly!"
 
-# 🌟 Welcome Message (/start) HTML Mode
+# 🌟 1. /start Command Handler
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    try:
-        welcome_text = (
-            "👋 <b>မင်္ဂလာပါ သယ်ရင်းရေ...</b>\n\n"
-            "🚀 <b>TikTok No Watermark Downloader Bot</b> မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n\n"
-            "📌 <b>အသုံးပြုနည်းကတော့ အရမ်းရိုးရှင်းပါတယ် -</b>\n"
-            "၁။ TikTok ထဲက ကြိုက်တဲ့ ဗီဒီယိုလင့်ခ်ကို ကူးယူပါ (Copy Link)။\n"
-            "၂။ ဒီ Chat ထဲကို လင့်ခ် တိုက်ရိုက် လှမ်းပို့လိုက်ပါ (Paste & Send)။\n"
-            "၃။ စက္ကန့်ပိုင်းအတွင်း Watermark မပါတဲ့ HD ဗီဒီယိုကို ချက်ချင်း ရရှိပါလိမ့်မယ်။\n\n"
-            "🤖 <i>Powered by Vercel Webhook (24/7 Lightning Fast)</i>"
-        )
-        
-        markup = InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
-            InlineKeyboardButton("👤 Developer Acc", url="https://www.facebook.com/share/17c7QqLEUA/")
-        )
-        
-        bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=markup)
-        
-    except Exception as e:
-        print(f"Welcome Error: {e}")
+    welcome_text = (
+        "👋 **မင်္ဂလာပါ သယ်ရင်းရေ...**\n\n"
+        "🚀 **TikTok No Watermark Downloader Bot** မှ ကြိုဆိုပါတယ်ဗျာ။\n\n"
+        "📌 **အသုံးပြုနည်း -**\n"
+        "၁။ TikTok လင့်ခ်ကို ကူးယူပါ။\n"
+        "၂။ ဒီ Chat ထဲကို လင့်ခ် တိုက်ရိုက် လှမ်းပို့ပါ။\n"
+        "🤖 _Powered by Vercel Webhook_"
+    )
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
+        InlineKeyboardButton("👤 Developer Acc", url="https://www.facebook.com/share/17c7QqLEUA/")
+    )
+    bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=markup)
 
-# 🎬 TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း
+# 🆕 2. New Member Join Handler (သီးခြား function အဖြစ် ပြင်လိုက်ပါပြီ)
+@bot.message_handler(content_types=['new_chat_members'])
+def welcome_new_member(message):
+    for new_member in message.new_chat_members:
+        text = (
+            f"👋 မင်္ဂလာပါ {new_member.first_name} ရေ!\n\n"
+            f"TikTok Downloader Group သို့ ကြိုဆိုပါတယ်ဗျာ။"
+        )
+        markup = InlineKeyboardMarkup()
+        # Bot username ကို အမှန်ကန်ဆုံးဖြစ်အောင် ပြင်ထားပါတယ်
+        bot_user = bot.get_me().username
+        markup.add(InlineKeyboardButton("🤖 Bot စတင်ရန် (/start)", url=f"https://t.me/{bot_user}?start=start"))
+        bot.send_message(message.chat.id, text, reply_markup=markup)
+
+# 🎬 3. Download Handler
 @bot.message_handler(func=lambda message: True)
 def handle_tiktok_download(message):
-    original_link = message.text.strip()
+    if "tiktok.com" not in message.text: return # Link မဟုတ်ရင် ဘာမှမလုပ်ပါ
     
-    if "tiktok.com" in original_link:
-        try:
-            msg = bot.reply_to(message, "⏳ ခဏစောင့်ပေးပါ သယ်ရင်း... ဗီဒီယို ဒေါင်းလုဒ်ဆွဲနေပါတယ်...")
-        except Exception:
-            return
+    msg = bot.reply_to(message, "⏳ ခဏစောင့်ပေးပါ သယ်ရင်း... ဗီဒီယို ဒေါင်းလုဒ်ဆွဲနေပါတယ်...")
+    video_url = None
+    title = "TikTok Video"
 
-        video_url = None
-        title = "TikTok Video"
+    try:
+        # API logic (ယခင်ကအတိုင်း)
+        api_url = "https://www.tikwm.com/api/"
+        resp_api = requests.post(api_url, data={'url': message.text.strip(), 'hd': 1}, timeout=6).json()
+        if resp_api.get('code') == 0:
+            data = resp_api.get('data', {})
+            video_url = data.get('play')
+            title = data.get('title', 'TikTok Video')
         
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        }
-
-        try:
-            # လမ်းကြောင်း ၁ - TikWM API (လင့်ခ်အတို/အရှည် တိုက်ရိုက်ထည့်လို့ရသည်)
-            try:
-                api_url = "https://www.tikwm.com/api/"
-                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, headers=headers, timeout=7).json()
-                if resp_api.get('code') == 0:
-                    data = resp_api.get('data', {})
-                    video_url = data.get('play')
-                    title = data.get('title', 'TikTok Video')
-            except Exception as e:
-                print(f"Primary API Error: {e}")
-
-            # လမ်းကြောင်း ၂ - Tiklydown API (Backup 1)
-            if not video_url:
-                try:
-                    tikly_url = f"https://api.tiklydown.eu.org/api/download?url={original_link}"
-                    resp_tikly = requests.get(tikly_url, headers=headers, timeout=7).json()
-                    if 'data' in resp_tikly:
-                        v_data = resp_tikly.get('data', {})
-                        video_url = v_data.get('video', {}).get('noWatermark')
-                        title = v_data.get('title', title)
-                except Exception as e:
-                    print(f"Tiklydown API Error: {e}")
-
-            # လမ်းကြောင်း ၃ - Tmate API (Backup 2)
-            if not video_url:
-                try:
-                    backup_url = f"https://api.tmate.to/download?url={original_link}"
-                    resp_backup = requests.get(backup_url, headers=headers, timeout=6).json()
-                    if resp_backup.get('success') or 'data' in resp_backup:
-                        video_url = resp_backup.get('data', {}).get('video_hd') or resp_backup.get('data', {}).get('video')
-                        title = resp_backup.get('data', {}).get('title') or title
-                except Exception as e:
-                    print(f"Backup API Error: {e}")
-            
-            # ဗီဒီယို ပြန်လည်ပေးပို့ခြင်း
-            if video_url:
-                markup = InlineKeyboardMarkup(row_width=2)
-                markup.add(InlineKeyboardButton("🔗 View Original", url=original_link))
-                markup.add(InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
-                           InlineKeyboardButton("👤 Admin Fb Acc", url="https://www.facebook.com/share/p/1beY6aEAqN/"))
-                
-                bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Powered by Foreverstudy", reply_markup=markup)
-                
-                try:
-                    bot.delete_message(message.chat.id, message.message_id)
-                    bot.delete_message(message.chat.id, msg.message_id)
-                except:
-                    pass
-            else:
-                bot.edit_message_text("❌ ဗီဒီယို ဆွဲမရဖြစ်နေသည်။ ခဏနေမှ ပြန်စမ်းကြည့်ပါ။", message.chat.id, msg.message_id)
+        if video_url:
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🔗 View Original", url=message.text.strip()))
+            bot.send_video(message.chat.id, video_url, caption=f"🎬 {title}\n\n✨ Foreverstudy", reply_markup=markup)
+            bot.delete_message(message.chat.id, msg.message_id)
+        else:
+            bot.edit_message_text("❌ ဗီဒီယို ဆွဲမရဖြစ်နေသည်။", message.chat.id, msg.message_id)
+    except Exception as e:
+        print(e)
         
-        except Exception as e:
-            try:
-                bot.edit_message_text("⚠️ Server အလုပ်များနေသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
-            except:
-                pass
-                               
