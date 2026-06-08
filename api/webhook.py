@@ -7,7 +7,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
+bot = telebot.TeleBot(BOT_TOKEN, threaded=True)
 
 # 🎯 Telegram Webhook ဝင်ပေါက်
 @app.route('/', methods=['GET', 'POST'])
