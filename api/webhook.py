@@ -25,7 +25,7 @@ def telegram_webhook():
         except Exception as e:
             print(f"Webhook Error: {e}")
             return 'ERROR', 500
-    return "✅ TikTok No Watermark Bot is Running!"
+    return "✅ Bot is Running!"
 
 # ====================== START ======================
 @bot.message_handler(commands=['start', 'help'])
@@ -33,7 +33,7 @@ def send_welcome(message):
     text = (
         "👋 **မင်္ဂလာပါ သယ်ရင်းရေ...**\n\n"
         "🚀 **TikTok No Watermark Downloader Bot** မှ ကြိုဆိုပါတယ်။\n\n"
-        "TikTok ဗီဒီယို Link ကို တိုက်ရိုက် Paste လုပ်ပြီး ပို့လိုက်ပါ။"
+        "TikTok Link ကို တိုက်ရိုက် Paste လုပ်ပြီး ပို့လိုက်ပါ။"
     )
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -50,8 +50,8 @@ def handle_tiktok(message):
 
     original_link = message.text.strip()
 
-    if "tiktok.com" not in original_link.lower():
-        bot.reply_to(message, "💡 TikTok ဗီဒီယို Link တစ်ခုခုကို ပို့ပေးပါ။")
+    if "tiktok.com" not in original_link.lower() and "vt.tiktok.com" not in original_link.lower():
+        bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
         return
 
     status_msg = bot.reply_to(message, "⏳ ဗီဒီယို ရှာနေပါတယ်... ခဏစောင့်ပါ။")
@@ -60,34 +60,45 @@ def handle_tiktok(message):
     title = "TikTok Video"
 
     try:
-        # API 1 - TikWM
+        # API 1: TikWM
         try:
             r = requests.post("https://www.tikwm.com/api/", 
                             data={"url": original_link, "hd": 1}, 
-                            headers=HEADERS, timeout=10)
-            if r.json().get("code") == 0:
-                data = r.json().get("data", {})
-                video_url = data.get("play")
-                title = data.get("title", title)
+                            headers=HEADERS, timeout=12)
+            data = r.json()
+            if data.get("code") == 0:
+                video_url = data.get("data", {}).get("play")
+                title = data.get("data", {}).get("title", title)
         except:
             pass
 
-        # API 2 - Tiklydown
+        # API 2: Tiklydown
         if not video_url:
             try:
                 r = requests.get(f"https://api.tiklydown.eu.org/api/download?url={original_link}", 
-                               headers=HEADERS, timeout=10)
+                               headers=HEADERS, timeout=12)
                 video_url = r.json().get("data", {}).get("video", {}).get("noWatermark")
             except:
                 pass
 
-        # API 3 - Tmate
+        # API 3: Tmate
         if not video_url:
             try:
                 r = requests.get(f"https://api.tmate.to/download?url={original_link}", 
-                               headers=HEADERS, timeout=10)
+                               headers=HEADERS, timeout=12)
                 data = r.json().get("data", {})
                 video_url = data.get("video_hd") or data.get("video")
+            except:
+                pass
+
+        # New API 4: SSSTik (Better fallback)
+        if not video_url:
+            try:
+                r = requests.get(f"https://api.ssstik.io/download?url={original_link}", 
+                               headers=HEADERS, timeout=12)
+                # Adjust according to actual response structure if needed
+                if "video" in r.text.lower():
+                    video_url = r.json().get("data", {}).get("video")
             except:
                 pass
 
@@ -111,7 +122,7 @@ def handle_tiktok(message):
             except:
                 pass
         else:
-            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ နောက်တစ်ခါ ပြန်စမ်းကြည့်ပါ။", 
+            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ ခဏနေမှ ပြန်စမ်းကြည့်ပါ။", 
                                 message.chat.id, status_msg.message_id)
 
     except Exception as e:
