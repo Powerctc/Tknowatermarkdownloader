@@ -47,7 +47,7 @@ def send_welcome(message):
     except Exception as e:
         print(f"Welcome Error: {e}")
 
-# 🎬 TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း (Updated)
+# 🎬 TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း
 @bot.message_handler(func=lambda message: True)
 def handle_tiktok_download(message):
     original_link = message.text.strip()
@@ -61,24 +61,15 @@ def handle_tiktok_download(message):
         video_url = None
         title = "TikTok Video"
         
-        # API ပိတ်မခံရစေရန် Browser Header သတ်မှတ်ခြင်း
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
         }
 
-        # 🌟 (၁) vt.tiktok.com short link များကို Full Link သို့ အရင်ပြောင်းလဲခြင်း
-        if "vt.tiktok.com" in original_link or "vm.tiktok.com" in original_link:
-            try:
-                redirect_resp = requests.get(original_link, headers=headers, timeout=5, allow_redirects=True)
-                original_link = redirect_resp.url
-            except Exception as e:
-                print(f"Link Expansion Error: {e}")
-
         try:
-            # လမ်းကြောင်း ၁ - TikWM API
+            # လမ်းကြောင်း ၁ - TikWM API (လင့်ခ်အတို/အရှည် တိုက်ရိုက်ထည့်လို့ရသည်)
             try:
                 api_url = "https://www.tikwm.com/api/"
-                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, headers=headers, timeout=6).json()
+                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, headers=headers, timeout=7).json()
                 if resp_api.get('code') == 0:
                     data = resp_api.get('data', {})
                     video_url = data.get('play')
@@ -86,11 +77,11 @@ def handle_tiktok_download(message):
             except Exception as e:
                 print(f"Primary API Error: {e}")
 
-            # လမ်းကြောင်း ၂ - Tiklydown API (အပိုဆောင်း Backup အသစ်)
+            # လမ်းကြောင်း ၂ - Tiklydown API (Backup 1)
             if not video_url:
                 try:
                     tikly_url = f"https://api.tiklydown.eu.org/api/download?url={original_link}"
-                    resp_tikly = requests.get(tikly_url, headers=headers, timeout=6).json()
+                    resp_tikly = requests.get(tikly_url, headers=headers, timeout=7).json()
                     if 'data' in resp_tikly:
                         v_data = resp_tikly.get('data', {})
                         video_url = v_data.get('video', {}).get('noWatermark')
@@ -98,11 +89,11 @@ def handle_tiktok_download(message):
                 except Exception as e:
                     print(f"Tiklydown API Error: {e}")
 
-            # လမ်းကြောင်း ၃ - Tmate API (Backup)
+            # လမ်းကြောင်း ၃ - Tmate API (Backup 2)
             if not video_url:
                 try:
                     backup_url = f"https://api.tmate.to/download?url={original_link}"
-                    resp_backup = requests.get(backup_url, headers=headers, timeout=5).json()
+                    resp_backup = requests.get(backup_url, headers=headers, timeout=6).json()
                     if resp_backup.get('success') or 'data' in resp_backup:
                         video_url = resp_backup.get('data', {}).get('video_hd') or resp_backup.get('data', {}).get('video')
                         title = resp_backup.get('data', {}).get('title') or title
@@ -131,4 +122,4 @@ def handle_tiktok_download(message):
                 bot.edit_message_text("⚠️ Server အလုပ်များနေသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
             except:
                 pass
-                
+                               
