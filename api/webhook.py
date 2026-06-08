@@ -54,12 +54,16 @@ def welcome_new_member(message):
         markup.add(InlineKeyboardButton("🤖 Bot စတင်ရန် (/start)", url=f"https://t.me/{bot_user}?start=start"))
         bot.send_message(message.chat.id, text, reply_markup=markup)
 
-# 🎬 3. Download Handler
+# 🎬 3. Download Handler ကို ဒီအတိုင်းလေး ပြင်ပေးလိုက်ပါ
 @bot.message_handler(func=lambda message: True)
 def handle_tiktok_download(message):
-    if "tiktok.com" not in message.text: return # Link မဟုတ်ရင် ဘာမှမလုပ်ပါ
+    # အကယ်၍ Command ဖြစ်နေရင် (သို့) Tiktok လင့်ခ်မပါရင် ဘာမှမလုပ်ဘဲ ထွက်သွားပါ
+    if message.text.startswith('/') or "tiktok.com" not in message.text:
+        return 
     
+    # ကျန်တဲ့ TikTok download logic အပိုင်းကို ဒီအောက်မှာ ဆက်ရေးပါ
     msg = bot.reply_to(message, "⏳ ခဏစောင့်ပေးပါ သယ်ရင်း... ဗီဒီယို ဒေါင်းလုဒ်ဆွဲနေပါတယ်...")
+    # ... (ကျန်တဲ့ ကုဒ်များ)
     video_url = None
     title = "TikTok Video"
 
