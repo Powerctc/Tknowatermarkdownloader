@@ -22,11 +22,10 @@ def telegram_webhook():
     else:
         return "TikTok Bot Webhook Server is Running Smoothly!"
 
-# 🌟 Welcome Message (/start) HTML Mode ဖြင့် ပြင်ဆင်ထားမှု
+# 🌟 Welcome Message (/start) HTML Mode
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        # မြန်မာစာလုံးများအတွက် စိတ်အချရဆုံး HTML tag များပြောင်းလဲထားသည်
         welcome_text = (
             "👋 <b>မင်္ဂလာပါ သယ်ရင်းရေ...</b>\n\n"
             "🚀 <b>TikTok No Watermark Downloader Bot</b> မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n\n"
@@ -37,20 +36,18 @@ def send_welcome(message):
             "🤖 <i>Powered by Vercel Webhook (24/7 Lightning Fast)</i>"
         )
         
-        # စာသားအောက်တွင် ပြသမည့် ခလုတ်များ
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
             InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
             InlineKeyboardButton("👤 Developer Acc", url="https://www.facebook.com/share/17c7QqLEUA/")
         )
         
-        # parse_mode ကို HTML သို့ ပြောင်းလဲပေးပို့ခြင်း
         bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=markup)
         
     except Exception as e:
         print(f"Welcome Error: {e}")
 
-# 🎬 TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း
+# 🎬 TikTok Links များအား ဖမ်းယူပြီး ဒေါင်းလုဒ်ဆွဲပေးခြင်း (Updated)
 @bot.message_handler(func=lambda message: True)
 def handle_tiktok_download(message):
     original_link = message.text.strip()
@@ -63,12 +60,25 @@ def handle_tiktok_download(message):
 
         video_url = None
         title = "TikTok Video"
+        
+        # API ပိတ်မခံရစေရန် Browser Header သတ်မှတ်ခြင်း
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        }
+
+        # 🌟 (၁) vt.tiktok.com short link များကို Full Link သို့ အရင်ပြောင်းလဲခြင်း
+        if "vt.tiktok.com" in original_link or "vm.tiktok.com" in original_link:
+            try:
+                redirect_resp = requests.get(original_link, headers=headers, timeout=5, allow_redirects=True)
+                original_link = redirect_resp.url
+            except Exception as e:
+                print(f"Link Expansion Error: {e}")
 
         try:
             # လမ်းကြောင်း ၁ - TikWM API
             try:
                 api_url = "https://www.tikwm.com/api/"
-                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, timeout=6).json()
+                resp_api = requests.post(api_url, data={'url': original_link, 'hd': 1}, headers=headers, timeout=6).json()
                 if resp_api.get('code') == 0:
                     data = resp_api.get('data', {})
                     video_url = data.get('play')
@@ -76,11 +86,23 @@ def handle_tiktok_download(message):
             except Exception as e:
                 print(f"Primary API Error: {e}")
 
-            # လမ်းကြောင်း ၂ - Tmate API (Backup)
+            # လမ်းကြောင်း ၂ - Tiklydown API (အပိုဆောင်း Backup အသစ်)
+            if not video_url:
+                try:
+                    tikly_url = f"https://api.tiklydown.eu.org/api/download?url={original_link}"
+                    resp_tikly = requests.get(tikly_url, headers=headers, timeout=6).json()
+                    if 'data' in resp_tikly:
+                        v_data = resp_tikly.get('data', {})
+                        video_url = v_data.get('video', {}).get('noWatermark')
+                        title = v_data.get('title', title)
+                except Exception as e:
+                    print(f"Tiklydown API Error: {e}")
+
+            # လမ်းကြောင်း ၃ - Tmate API (Backup)
             if not video_url:
                 try:
                     backup_url = f"https://api.tmate.to/download?url={original_link}"
-                    resp_backup = requests.get(backup_url, timeout=5).json()
+                    resp_backup = requests.get(backup_url, headers=headers, timeout=5).json()
                     if resp_backup.get('success') or 'data' in resp_backup:
                         video_url = resp_backup.get('data', {}).get('video_hd') or resp_backup.get('data', {}).get('video')
                         title = resp_backup.get('data', {}).get('title') or title
