@@ -9,7 +9,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/webhook.py"
+      "dest": "webhook.py"
     }
   ]
 }
