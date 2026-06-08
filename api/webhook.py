@@ -60,47 +60,32 @@ def handle_tiktok(message):
     title = "TikTok Video"
 
     try:
-        # API 1: TikWM
-        try:
-            r = requests.post("https://www.tikwm.com/api/", 
-                            data={"url": original_link, "hd": 1}, 
-                            headers=HEADERS, timeout=12)
-            data = r.json()
-            if data.get("code") == 0:
-                video_url = data.get("data", {}).get("play")
-                title = data.get("data", {}).get("title", title)
-        except:
-            pass
+        urls_to_try = [
+            ("https://www.tikwm.com/api/", {"url": original_link, "hd": 1}),
+            (f"https://api.tiklydown.eu.org/api/download?url={original_link}", None),
+            (f"https://api.tmate.to/download?url={original_link}", None),
+            (f"https://api.ssstik.io/download?url={original_link}", None),
+        ]
 
-        # API 2: Tiklydown
-        if not video_url:
-            try:
-                r = requests.get(f"https://api.tiklydown.eu.org/api/download?url={original_link}", 
-                               headers=HEADERS, timeout=12)
-                video_url = r.json().get("data", {}).get("video", {}).get("noWatermark")
-            except:
-                pass
-
-        # API 3: Tmate
-        if not video_url:
-            try:
-                r = requests.get(f"https://api.tmate.to/download?url={original_link}", 
-                               headers=HEADERS, timeout=12)
-                data = r.json().get("data", {})
-                video_url = data.get("video_hd") or data.get("video")
-            except:
-                pass
-
-        # New API 4: SSSTik (Better fallback)
-        if not video_url:
-            try:
-                r = requests.get(f"https://api.ssstik.io/download?url={original_link}", 
-                               headers=HEADERS, timeout=12)
-                # Adjust according to actual response structure if needed
-                if "video" in r.text.lower():
-                    video_url = r.json().get("data", {}).get("video")
-            except:
-                pass
+        for api_url, payload in urls_to_try:
+            if not video_url:
+                try:
+                    if payload:  # POST
+                        r = requests.post(api_url, data=payload, headers=HEADERS, timeout=12)
+                    else:  # GET
+                        r = requests.get(api_url, headers=HEADERS, timeout=12)
+                    
+                    data = r.json()
+                    
+                    # Different API structures
+                    if "data" in data:
+                        if isinstance(data["data"], dict):
+                            video_url = data["data"].get("play") or data["data"].get("video") or data["data"].get("noWatermark")
+                            title = data["data"].get("title", title)
+                    elif "video" in data:
+                        video_url = data.get("video")
+                except:
+                    continue
 
         if video_url:
             markup = InlineKeyboardMarkup(row_width=2)
@@ -126,7 +111,7 @@ def handle_tiktok(message):
                                 message.chat.id, status_msg.message_id)
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"General Error: {e}")
         try:
             bot.edit_message_text("⚠️ စနစ်မှာ ခဏ ပြဿနာရှိနေပါတယ်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", 
                                 message.chat.id, status_msg.message_id)
