@@ -1,4 +1,4 @@
-Import os
+import os
 import requests
 import telebot
 from flask import Flask, request
@@ -22,19 +22,19 @@ def telegram_webhook():
     else:
         return "TikTok Bot Webhook Server is Running Smoothly!"
 
-# 🌟 Welcome Message (/start) ကို အသစ်ပြန်ပြင်ဆင်ထားသော နေရာ
+# 🌟 Welcome Message (/start) HTML Mode ဖြင့် ပြင်ဆင်ထားမှု
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     try:
-        # လှပသပ်ရပ်သော Welcome စာသားပုံစံ
+        # မြန်မာစာလုံးများအတွက် စိတ်အချရဆုံး HTML tag များပြောင်းလဲထားသည်
         welcome_text = (
-            "👋 **မင်္ဂလာပါ သယ်ရင်းရေ...**\n\n"
-            "🚀 **TikTok No Watermark Downloader Bot** မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n\n"
-            "📌 **အသုံးပြုနည်းကတော့ အရမ်းရိုးရှင်းပါတယ် -**\n"
+            "👋 <b>မင်္ဂလာပါ သယ်ရင်းရေ...</b>\n\n"
+            "🚀 <b>TikTok No Watermark Downloader Bot</b> မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်ဗျာ။\n\n"
+            "📌 <b>အသုံးပြုနည်းကတော့ အရမ်းရိုးရှင်းပါတယ် -</b>\n"
             "၁။ TikTok ထဲက ကြိုက်တဲ့ ဗီဒီယိုလင့်ခ်ကို ကူးယူပါ (Copy Link)။\n"
             "၂။ ဒီ Chat ထဲကို လင့်ခ် တိုက်ရိုက် လှမ်းပို့လိုက်ပါ (Paste & Send)။\n"
             "၃။ စက္ကန့်ပိုင်းအတွင်း Watermark မပါတဲ့ HD ဗီဒီယိုကို ချက်ချင်း ရရှိပါလိမ့်မယ်။\n\n"
-            "🤖 _Powered by Vercel Webhook (24/7 Lightning Fast)_"
+            "🤖 <i>Powered by Vercel Webhook (24/7 Lightning Fast)</i>"
         )
         
         # စာသားအောက်တွင် ပြသမည့် ခလုတ်များ
@@ -44,8 +44,8 @@ def send_welcome(message):
             InlineKeyboardButton("👤 Developer Acc", url="https://www.facebook.com/share/17c7QqLEUA/")
         )
         
-        # Markdown စနစ်ဖြင့် စာသားများကို အထူ/အစောင်း လှမ်းလုပ်ပြီး ပို့ခြင်း
-        bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+        # parse_mode ကို HTML သို့ ပြောင်းလဲပေးပို့ခြင်း
+        bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=markup)
         
     except Exception as e:
         print(f"Welcome Error: {e}")
@@ -109,3 +109,4 @@ def handle_tiktok_download(message):
                 bot.edit_message_text("⚠️ Server အလုပ်များနေသည်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", message.chat.id, msg.message_id)
             except:
                 pass
+                
