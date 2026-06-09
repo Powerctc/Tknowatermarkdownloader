@@ -56,13 +56,11 @@ def handle_tiktok(message):
     title = "TikTok Video"
 
     try:
-        # Stronger APIs for vt.tiktok links
         apis = [
-            f"https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={original_link.split('/')[-1]}",  # Experimental
             f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}",
             f"https://api.tiklydown.eu.org/api/download?url={original_link}",
             f"https://api.tmate.to/download?url={original_link}",
-            "https://www.tikwm.com/api/",  # POST
+            "https://www.tikwm.com/api/",
         ]
 
         for api_url in apis:
@@ -76,12 +74,12 @@ def handle_tiktok(message):
                 
                 data = r.json()
                 
-                # Try to extract video URL
                 if "data" in data:
                     d = data.get("data")
                     video_url = d.get("play") or d.get("video") or d.get("noWatermark") or d.get("hd")
+                    title = d.get("title", title)
                 else:
-                    video_url = data.get("video") or data.get("url") or data.get("download")
+                    video_url = data.get("video") or data.get("url")
                 
                 if video_url and isinstance(video_url, str) and video_url.startswith("http"):
                     break
@@ -95,10 +93,18 @@ def handle_tiktok(message):
                 InlineKeyboardButton("👤 Admin FB Follow", url="https://www.facebook.com/share/17c7QqLEUA/")
             )
             
+            # ===== ဗီဒီယို အောက်က စာသား =====
+            caption = (
+                f"🎬 {title}\n\n"
+                f"🔗 Original Link: {original_link}\n"
+                f"✅ Watermark Free • HD Quality\n"
+                f"✨ Powered by Forever Study"
+            )
+            
             bot.send_video(
                 message.chat.id, 
                 video_url, 
-                caption=f"🎬 {title}\n\n✨ Powered by Forever Study",
+                caption=caption,
                 reply_markup=markup
             )
             
@@ -108,7 +114,7 @@ def handle_tiktok(message):
             except:
                 pass
         else:
-            bot.edit_message_text("❌ ဒီလင့်ခ်နဲ့ ဗီဒီယို ရှာမတွေ့သေးပါ။ နောက်တစ်ခါ ပြန်စမ်းကြည့်ပါ။", 
+            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ နောက်တစ်ခါ ပြန်စမ်းကြည့်ပါ။", 
                                 message.chat.id, status_msg.message_id)
 
     except Exception as e:
