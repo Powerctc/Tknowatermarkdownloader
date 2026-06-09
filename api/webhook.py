@@ -27,6 +27,14 @@ def telegram_webhook():
             return 'ERROR', 500
     return "✅ Bot is Running!"
 
+# Short Link ကို Full URL အဖြစ် ပြောင်းပေးတဲ့ Function
+def get_full_tiktok_url(short_url):
+    try:
+        r = requests.get(short_url, headers=HEADERS, allow_redirects=True, timeout=10)
+        return r.url
+    except:
+        return short_url  # မရရင် မူရင်း link ကိုပဲ ပြန်သုံး
+
 # ====================== START ======================
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -50,6 +58,10 @@ def handle_tiktok(message):
         bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
         return
 
+    # Short Link ကို Full URL အဖြစ် ပြောင်း
+    full_link = get_full_tiktok_url(original_link)
+    print(f"Original: {original_link} → Full: {full_link}")
+
     status_msg = bot.reply_to(message, "⏳ ဗီဒီယို ရှာနေပါတယ်... ခဏစောင့်ပါ။")
 
     video_url = None
@@ -57,9 +69,9 @@ def handle_tiktok(message):
 
     try:
         apis = [
-            f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}",
-            f"https://api.tiklydown.eu.org/api/download?url={original_link}",
-            f"https://api.tmate.to/download?url={original_link}",
+            f"https://tdownv4.sl-bjs.workers.dev/?down={full_link}",
+            f"https://api.tiklydown.eu.org/api/download?url={full_link}",
+            f"https://api.tmate.to/download?url={full_link}",
             "https://www.tikwm.com/api/",
         ]
 
@@ -68,7 +80,7 @@ def handle_tiktok(message):
                 break
             try:
                 if "tikwm" in api_url:
-                    r = requests.post(api_url, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=15)
+                    r = requests.post(api_url, data={"url": full_link, "hd": 1}, headers=HEADERS, timeout=15)
                 else:
                     r = requests.get(api_url, headers=HEADERS, timeout=15)
                 
@@ -93,20 +105,14 @@ def handle_tiktok(message):
                 InlineKeyboardButton("👤 Admin FB Follow", url="https://www.facebook.com/share/17c7QqLEUA/")
             )
             
-            # ===== ဗီဒီယို အောက်က စာသား =====
             caption = (
                 f"🎬 {title}\n\n"
-                f"🔗 Original Link: {original_link}\n"
+                f"🔗 Original: {original_link}\n"
                 f"✅ Watermark Free • HD Quality\n"
                 f"✨ Powered by Forever Study"
             )
             
-            bot.send_video(
-                message.chat.id, 
-                video_url, 
-                caption=caption,
-                reply_markup=markup
-            )
+            bot.send_video(message.chat.id, video_url, caption=caption, reply_markup=markup)
             
             try:
                 bot.delete_message(message.chat.id, status_msg.message_id)
@@ -114,15 +120,12 @@ def handle_tiktok(message):
             except:
                 pass
         else:
-            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ နောက်တစ်ခါ ပြန်စမ်းကြည့်ပါ။", 
+            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ (Private Video ဖြစ်နိုင်ပါတယ်)\nနောက်တစ်ခါ ပြန်စမ်းကြည့်ပါ။", 
                                 message.chat.id, status_msg.message_id)
 
     except Exception as e:
         print(f"Error: {e}")
-        try:
-            bot.edit_message_text("⚠️ စနစ်မှာ ခဏ ပြဿနာရှိနေပါတယ်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", 
-                                message.chat.id, status_msg.message_id)
-        except:
-            pass
+        bot.edit_message_text("⚠️ စနစ်မှာ ခဏ ပြဿနာရှိနေပါတယ်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", 
+                            message.chat.id, status_msg.message_id)
 
 handler = app
