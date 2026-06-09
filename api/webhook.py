@@ -13,7 +13,6 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-# Short Link → Full Link ပြောင်းပေးတဲ့ Function
 def get_full_tiktok_url(short_url):
     try:
         r = requests.get(short_url, headers=HEADERS, allow_redirects=True, timeout=10)
@@ -58,7 +57,6 @@ def handle_tiktok(message):
         bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
         return
 
-    # Short Link ကို Full URL အဖြစ် ပြောင်း
     full_link = get_full_tiktok_url(original_link)
     print(f"Short: {original_link} → Full: {full_link}")
 
@@ -68,12 +66,12 @@ def handle_tiktok(message):
     title = "TikTok Video"
 
     try:
-        # ပိုကောင်းတဲ့ APIs
+        # ပိုကောင်းတဲ့ APIs (2026 အခြေအနေ)
         apis = [
+            f"https://tdownv4.sl-bjs.workers.dev/?down={full_link}",   # အခုကောင်းနေတယ်
             f"https://api.tiklydown.eu.org/api/download?url={full_link}",
             f"https://api.tmate.to/download?url={full_link}",
-            f"https://tdownv4.sl-bjs.workers.dev/?down={full_link}",
-            "https://www.tikwm.com/api/",   # POST
+            "https://www.tikwm.com/api/",
         ]
 
         for api_url in apis:
@@ -87,7 +85,6 @@ def handle_tiktok(message):
                 
                 data = r.json()
                 
-                # Extract video URL
                 if "data" in data:
                     d = data.get("data")
                     video_url = d.get("play") or d.get("video") or d.get("noWatermark") or d.get("hd")
