@@ -44,7 +44,7 @@ def handle_tiktok(message):
     if not message.text or message.text.startswith('/'):
         return
 
-    original_link = message.text.strip().split('?')[0]  # Clean link
+    original_link = message.text.strip().split('?')[0]
 
     if "tiktok.com" not in original_link.lower():
         bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
@@ -56,34 +56,34 @@ def handle_tiktok(message):
     title = "TikTok Video"
 
     try:
-        # New Strong APIs
+        # Stronger APIs for vt.tiktok links
         apis = [
-            f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}",   # Good for copy links
+            f"https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={original_link.split('/')[-1]}",  # Experimental
+            f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}",
             f"https://api.tiklydown.eu.org/api/download?url={original_link}",
             f"https://api.tmate.to/download?url={original_link}",
             "https://www.tikwm.com/api/",  # POST
         ]
 
-        for api in apis:
+        for api_url in apis:
             if video_url:
                 break
             try:
-                if "tikwm" in api:
-                    r = requests.post(api, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=15)
+                if "tikwm" in api_url:
+                    r = requests.post(api_url, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=15)
                 else:
-                    r = requests.get(api, headers=HEADERS, timeout=15)
+                    r = requests.get(api_url, headers=HEADERS, timeout=15)
                 
                 data = r.json()
                 
-                # Extract video URL from different structures
-                if isinstance(data, dict):
-                    if "data" in data:
-                        d = data["data"]
-                        video_url = d.get("play") or d.get("video") or d.get("noWatermark") or d.get("hd")
-                    else:
-                        video_url = data.get("video") or data.get("url") or data.get("download")
+                # Try to extract video URL
+                if "data" in data:
+                    d = data.get("data")
+                    video_url = d.get("play") or d.get("video") or d.get("noWatermark") or d.get("hd")
+                else:
+                    video_url = data.get("video") or data.get("url") or data.get("download")
                 
-                if video_url and "http" in video_url:
+                if video_url and isinstance(video_url, str) and video_url.startswith("http"):
                     break
             except:
                 continue
@@ -108,7 +108,7 @@ def handle_tiktok(message):
             except:
                 pass
         else:
-            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ လင့်ခ်အသစ်တစ်ခု ပြန်စမ်းကြည့်ပါ။", 
+            bot.edit_message_text("❌ ဒီလင့်ခ်နဲ့ ဗီဒီယို ရှာမတွေ့သေးပါ။ နောက်တစ်ခါ ပြန်စမ်းကြည့်ပါ။", 
                                 message.chat.id, status_msg.message_id)
 
     except Exception as e:
