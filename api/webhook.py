@@ -30,11 +30,7 @@ def telegram_webhook():
 # ====================== START ======================
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    text = (
-        "👋 **မင်္ဂလာပါ သယ်ရင်းရေ...**\n\n"
-        "🚀 **TikTok No Watermark Downloader Bot** မှ ကြိုဆိုပါတယ်။\n\n"
-        "TikTok Link ကို တိုက်ရိုက် Paste လုပ်ပြီး ပို့လိုက်ပါ။"
-    )
+    text = "👋 **မင်္ဂလာပါ သယ်ရင်းရေ...**\n\n🚀 **TikTok No Watermark Downloader** မှ ကြိုဆိုပါတယ်။\n\nTikTok Link ကို Paste လုပ်ပြီး ပို့လိုက်ပါ။"
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
@@ -48,9 +44,9 @@ def handle_tiktok(message):
     if not message.text or message.text.startswith('/'):
         return
 
-    original_link = message.text.strip()
+    original_link = message.text.strip().split('?')[0]  # Clean link
 
-    if "tiktok.com" not in original_link.lower() and "vt.tiktok.com" not in original_link.lower():
+    if "tiktok.com" not in original_link.lower():
         bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
         return
 
@@ -60,32 +56,37 @@ def handle_tiktok(message):
     title = "TikTok Video"
 
     try:
-        urls_to_try = [
-            ("https://www.tikwm.com/api/", {"url": original_link, "hd": 1}),
-            (f"https://api.tiklydown.eu.org/api/download?url={original_link}", None),
-            (f"https://api.tmate.to/download?url={original_link}", None),
-            (f"https://api.ssstik.io/download?url={original_link}", None),
+        # New Strong APIs
+        apis = [
+            f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}",   # Good for copy links
+            f"https://api.tiklydown.eu.org/api/download?url={original_link}",
+            f"https://api.tmate.to/download?url={original_link}",
+            "https://www.tikwm.com/api/",  # POST
         ]
 
-        for api_url, payload in urls_to_try:
-            if not video_url:
-                try:
-                    if payload:  # POST
-                        r = requests.post(api_url, data=payload, headers=HEADERS, timeout=12)
-                    else:  # GET
-                        r = requests.get(api_url, headers=HEADERS, timeout=12)
-                    
-                    data = r.json()
-                    
-                    # Different API structures
+        for api in apis:
+            if video_url:
+                break
+            try:
+                if "tikwm" in api:
+                    r = requests.post(api, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=15)
+                else:
+                    r = requests.get(api, headers=HEADERS, timeout=15)
+                
+                data = r.json()
+                
+                # Extract video URL from different structures
+                if isinstance(data, dict):
                     if "data" in data:
-                        if isinstance(data["data"], dict):
-                            video_url = data["data"].get("play") or data["data"].get("video") or data["data"].get("noWatermark")
-                            title = data["data"].get("title", title)
-                    elif "video" in data:
-                        video_url = data.get("video")
-                except:
-                    continue
+                        d = data["data"]
+                        video_url = d.get("play") or d.get("video") or d.get("noWatermark") or d.get("hd")
+                    else:
+                        video_url = data.get("video") or data.get("url") or data.get("download")
+                
+                if video_url and "http" in video_url:
+                    break
+            except:
+                continue
 
         if video_url:
             markup = InlineKeyboardMarkup(row_width=2)
@@ -107,11 +108,11 @@ def handle_tiktok(message):
             except:
                 pass
         else:
-            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ ခဏနေမှ ပြန်စမ်းကြည့်ပါ။", 
+            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ လင့်ခ်အသစ်တစ်ခု ပြန်စမ်းကြည့်ပါ။", 
                                 message.chat.id, status_msg.message_id)
 
     except Exception as e:
-        print(f"General Error: {e}")
+        print(f"Error: {e}")
         try:
             bot.edit_message_text("⚠️ စနစ်မှာ ခဏ ပြဿနာရှိနေပါတယ်။ ခဏနေမှ ပြန်ကြိုးစားပါ။", 
                                 message.chat.id, status_msg.message_id)
