@@ -13,6 +13,14 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
+# Short Link → Full Link ပြောင်းပေးတဲ့ Function
+def get_full_tiktok_url(short_url):
+    try:
+        r = requests.get(short_url, headers=HEADERS, allow_redirects=True, timeout=10)
+        return r.url
+    except:
+        return short_url
+
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/api/webhook', methods=['GET', 'POST'])
 def telegram_webhook():
@@ -26,14 +34,6 @@ def telegram_webhook():
             print(f"Webhook Error: {e}")
             return 'ERROR', 500
     return "✅ Bot is Running!"
-
-# Short Link ကို Full URL အဖြစ် ပြောင်းပေးတဲ့ Function
-def get_full_tiktok_url(short_url):
-    try:
-        r = requests.get(short_url, headers=HEADERS, allow_redirects=True, timeout=10)
-        return r.url
-    except:
-        return short_url  # မရရင် မူရင်း link ကိုပဲ ပြန်သုံး
 
 # ====================== START ======================
 @bot.message_handler(commands=['start', 'help'])
@@ -60,7 +60,7 @@ def handle_tiktok(message):
 
     # Short Link ကို Full URL အဖြစ် ပြောင်း
     full_link = get_full_tiktok_url(original_link)
-    print(f"Original: {original_link} → Full: {full_link}")
+    print(f"Short: {original_link} → Full: {full_link}")
 
     status_msg = bot.reply_to(message, "⏳ ဗီဒီယို ရှာနေပါတယ်... ခဏစောင့်ပါ။")
 
@@ -68,11 +68,12 @@ def handle_tiktok(message):
     title = "TikTok Video"
 
     try:
+        # ပိုကောင်းတဲ့ APIs
         apis = [
-            f"https://tdownv4.sl-bjs.workers.dev/?down={full_link}",
             f"https://api.tiklydown.eu.org/api/download?url={full_link}",
             f"https://api.tmate.to/download?url={full_link}",
-            "https://www.tikwm.com/api/",
+            f"https://tdownv4.sl-bjs.workers.dev/?down={full_link}",
+            "https://www.tikwm.com/api/",   # POST
         ]
 
         for api_url in apis:
@@ -86,12 +87,13 @@ def handle_tiktok(message):
                 
                 data = r.json()
                 
+                # Extract video URL
                 if "data" in data:
                     d = data.get("data")
                     video_url = d.get("play") or d.get("video") or d.get("noWatermark") or d.get("hd")
                     title = d.get("title", title)
                 else:
-                    video_url = data.get("video") or data.get("url")
+                    video_url = data.get("video") or data.get("url") or data.get("download")
                 
                 if video_url and isinstance(video_url, str) and video_url.startswith("http"):
                     break
@@ -120,7 +122,7 @@ def handle_tiktok(message):
             except:
                 pass
         else:
-            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ (Private Video ဖြစ်နိုင်ပါတယ်)\nနောက်တစ်ခါ ပြန်စမ်းကြည့်ပါ။", 
+            bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ လင့်ခ်အသစ်တစ်ခု ပြန်စမ်းကြည့်ပါ။", 
                                 message.chat.id, status_msg.message_id)
 
     except Exception as e:
