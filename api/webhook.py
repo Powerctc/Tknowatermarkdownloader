@@ -48,7 +48,7 @@ def send_welcome(message):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton("👥 Admin Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9"),
-        InlineKeyboardButton("👤 Admin FB", url="https://www.facebook.com/share/17c7QqLEUA/")
+        InlineKeyboardButton("👤 Admin FB", url="https://www.facebook.com/share/1D51YRzmjL/")
     )
     # Use Markdown (if your text contains characters that need escaping, consider MarkdownV2 or HTML)
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
