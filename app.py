@@ -1,11 +1,11 @@
 import os
+import time
 import logging
 import requests
-import re # ဒါထည့်
+import re
 from flask import Flask
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-# from telebot.util import escape_markdown  <-- ဒါကိုဖျက်
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
