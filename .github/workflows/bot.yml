@@ -1,0 +1,21 @@
+name: Run FOTMOV TK Bot 24/7
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *' # 5 မိနစ်တစ်ခါ restart
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350 # 6 နာရီနီးပါး run ခိုင်းထားမယ်
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      - name: Run Bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: python app.py
