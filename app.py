@@ -1,13 +1,12 @@
 import os
 import logging
 import requests
-import re
+import re # ဒါထည့်
 from flask import Flask
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from telebot.util import escape_markdown
+# from telebot.util import escape_markdown  <-- ဒါကိုဖျက်
 
-# ---------- Config ----------
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -16,15 +15,20 @@ if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN required")
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True, num_threads=4)
-app = Flask(__name__) # Render.com အတွက် ချန်ထားမယ်
+app = Flask(__name__)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Referer": "https://www.tiktok.com/"
 }
 
-ADMIN_ID = 123456789 # မင်းရဲ့ Telegram ID ထည့်
+def escape_markdown_v2(text: str) -> str:
+    if not text: return ""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
+# ကျန်တဲ့ code အကုန် အရင်အတိုင်း...
+# safe_title = escape_markdown_v2(title) ဆိုပြီး သုံးလိုက်
 # ---------- Utils ----------
 def download_file(url, filename="video.mp4"):
     """URL ကနေ file download ဆွဲမယ်. 50MB ထိ Telegram လက်ခံတယ်"""
