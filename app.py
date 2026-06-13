@@ -27,8 +27,6 @@ def escape_markdown_v2(text: str) -> str:
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
-# ကျန်တဲ့ code အကုန် အရင်အတိုင်း...
-# safe_title = escape_markdown_v2(title) ဆိုပြီး သုံးလိုက်
 # ---------- Utils ----------
 def download_file(url, filename="video.mp4"):
     """URL ကနေ file download ဆွဲမယ်. 50MB ထိ Telegram လက်ခံတယ်"""
