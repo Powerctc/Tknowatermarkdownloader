@@ -4,7 +4,6 @@ import logging
 import requests
 import re
 from flask import Flask
-from flask_cors import CORS
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -21,7 +20,6 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True, num_threads=4)
 app = Flask(__name__)
-CORS(app)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
