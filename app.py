@@ -100,8 +100,17 @@ def handle_tiktok(message):
             logger.warning(f"API {api_url} failed: {e}")
             continue
 
+        # ... (အပေါ်က API ကနေ video_url ရှာတဲ့အပိုင်း)
+
     if not video_url:
         return bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ Link မှန်ရဲ့လား စစ်ပေးပါ။", message.chat.id, status_msg.message_id)
+
+    # 1. markup ကို try ရဲ့ အပြင်မှာ ကြိုတင် Initialize လုပ်ထားပါမယ် (Error မတက်စေရန်)
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("🔗 Original Link", url=original_link),
+        InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
+    )
 
     try:
         bot.edit_message_text("📥 ဒေါင်းနေပါတယ်...", message.chat.id, status_msg.message_id)
@@ -109,13 +118,6 @@ def handle_tiktok(message):
         # File size စစ်မယ်
         head = requests.head(video_url, headers=HEADERS, timeout=10)
         file_size = int(head.headers.get('content-length', 0))
-
-        # ၁။ Buttons ပြင်ဆင်ခြင်း (Original Link Button ထည့်ထားပါတယ်)
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("🔗 Original Link", url=original_link),
-            InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
-        )
 
         # ၂။ Caption နှင့် Hashtag ပုံစံချခြင်း
         safe_title = escape_markdown_v2(title)
@@ -130,7 +132,7 @@ def handle_tiktok(message):
                 os.remove(filename)
             else: raise Exception("Download failed")
         else:
-            # ဗီဒီယို ဖိုင်ကြီးလွန်းရင် (သို့) Fallback အတွက် စာသားပဲ ပို့မယ်
+            # ဗီဒီယို ဖိုင်ကြီးလွန်းရင် စာသားပဲ ပို့မယ်
             safe_video_url = escape_markdown_v2(video_url)
             caption += f"\n\n📦 File ကြီးလို့ Link ပဲပို့လိုက်ပါတယ်:\n{safe_video_url}"
             bot.send_message(message.chat.id, caption, parse_mode="MarkdownV2", reply_markup=markup)
@@ -140,12 +142,14 @@ def handle_tiktok(message):
     except Exception as e:
         logger.exception("Send video failed")
         safe_video_url = escape_markdown_v2(video_url)
-        # Exception ဖြစ်သွားရင်လည်း ခလုတ်နဲ့ Caption ပုံစံမပျက် ပို့ပေးနိုင်အောင် ပြင်ဆင်ထားပါတယ်
+        
+        # အပေါ်မှာ markup ကို ကြိုကြေညာထားလို့ အခု except ထဲမှာ သုံးရင် Error မတက်တော့ပါဘူး
         fallback_caption = f"⚠️ ပို့လို့မရပါ။ Link:\n{safe_video_url}\n\nFrom original \#bfaAi \#bfastream"
         bot.send_message(message.chat.id, fallback_caption, parse_mode="MarkdownV2", reply_markup=markup)
         try:
             bot.delete_message(message.chat.id, status_msg.message_id)
         except: pass
+    
 
 @app.route('/')
 def index():
