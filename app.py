@@ -3,7 +3,8 @@ import time
 import logging
 import requests
 import re
-from flask import Flask, request
+import threading
+from flask import Flask
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN required")
+    raise RuntimeError("BOT_TOKEN environment variable required")
 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True, num_threads=4)
 app = Flask(__name__)
@@ -35,12 +36,11 @@ def extract_hashtags_from_desc(desc):
 def clean_caption(desc):
     if not desc: return "TikTok Video"
     desc = re.sub(r'http\S+', '', desc)
-    desc = re.sub(r'@\w+', '', desc)  # Remove mentions
+    desc = re.sub(r'@\w+', '', desc)
     desc = re.sub(r'\s+', ' ', desc).strip()
     return desc[:150] if desc else "TikTok Video"
 
 def expand_tiktok_url(url):
-    """vt.tiktok.com တို့ကို full URL အဖြစ် ပြောင်းလဲပေးခြင်း"""
     try:
         if 'vt.tiktok.com' in url or 'vm.tiktok.com' in url:
             r = requests.head(url, headers=HEADERS, allow_redirects=True, timeout=10)
@@ -50,7 +50,6 @@ def expand_tiktok_url(url):
         return url
 
 def download_file(url, filename="video.mp4"):
-    """ဗီဒီယိုကို Server ထဲသို့ Download ဆွဲယူခြင်း"""
     try:
         with requests.get(url, headers=HEADERS, stream=True, timeout=120) as r:
             r.raise_for_status()
@@ -65,7 +64,6 @@ def download_file(url, filename="video.mp4"):
 def extract_video_info_from_json(data):
     if not isinstance(data, dict): return None, None, "", ""
     
-    # TikWM format
     if data.get("code") == 0 and isinstance(data.get("data"), dict):
         d = data["data"]
         video_url = d.get("hdplay") or d.get("play") or d.get("wmplay")
@@ -74,7 +72,6 @@ def extract_video_info_from_json(data):
         author = d.get("author", {}).get("nickname", "") or d.get("author", {}).get("unique_id", "")
         return video_url, title, desc, author
     
-    # TikLyDown format
     if data.get("video") and isinstance(data["video"], dict):
         v = data["video"]
         video_url = v.get("noWatermark") or v.get("watermark") or v.get("hd") or v.get("sd")
@@ -83,7 +80,6 @@ def extract_video_info_from_json(data):
         author = data.get("author", {}).get("nickname", "") or data.get("author", {}).get("unique_id", "")
         return video_url, title, desc, author
     
-    # Generic format
     for key in ("video", "url", "play", "hd", "downloadUrl", "nowm"):
         v = data.get(key)
         if isinstance(v, str) and v.startswith("http"):
@@ -112,20 +108,16 @@ def handle_tiktok(message):
     if not message.text or message.text.startswith('/'): return
 
     user_link = message.text.strip()
-    
     if not any(x in user_link.lower() for x in ["tiktok.com", "douyin"]):
         return bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
     
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except Exception as e:
-        logger.warning(f"Cannot delete user message: {e}")
+    try: bot.delete_message(message.chat.id, message.message_id)
+    except: pass
 
     original_link = expand_tiktok_url(user_link.split('?')[0])
     status_msg = bot.send_message(message.chat.id, "⏳ ဗီဒီယို ရှာနေပါတယ်...")
 
     video_url, title, desc, author = None, "TikTok Video", "", ""
-    
     apis = [
         ("https://www.tikwm.com/api/", "POST"),
         (f"https://api.tiklydown.eu.org/api/download?url={original_link}", "GET"),
@@ -143,13 +135,10 @@ def handle_tiktok(message):
             if r.status_code != 200: continue
             data = r.json()
             v, t, d, a = extract_video_info_from_json(data)
-            
             if v:
                 video_url, title, desc, author = v, t or title, d, a
-                logger.info(f"Got video from {api_url}")
                 break
-        except Exception as e:
-            logger.warning(f"API {api_url} failed: {e}")
+        except:
             continue
 
     if not video_url:
@@ -157,7 +146,6 @@ def handle_tiktok(message):
         except: pass
         return
 
-    # Markup ခလုတ်များကို try အပြင်ဘက်မှာ ကြိုတင်ပြင်ဆင်ထားပါသည် (Error မတက်စေရန်)
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
         InlineKeyboardButton("🔗 Original Link", url=user_link),
@@ -184,38 +172,23 @@ def handle_tiktok(message):
             with requests.get(video_url, headers=HEADERS, stream=True, timeout=15) as r:
                 if r.status_code == 200:
                     file_size = int(r.headers.get('content-length', 0))
-        except Exception as e:
-            logger.warning(f"Failed to get content-length: {e}")
+        except: pass
 
-        # 50MB အောက်ဆို ဗီဒီယို တိုက်ရိုက်ပို့မည်
         if file_size < 50 * 1024 * 1024:
             filename = download_file(video_url)
             if filename and os.path.exists(filename):
                 with open(filename, 'rb') as video:
-                    bot.send_video(
-                        message.chat.id,
-                        video,
-                        caption=caption,
-                        parse_mode="HTML",
-                        reply_markup=markup
-                    )
+                    bot.send_video(message.chat.id, video, caption=caption, parse_mode="HTML", reply_markup=markup)
                 os.remove(filename)
                 try: bot.delete_message(message.chat.id, status_msg.message_id)
                 except: pass
                 return
 
-        # File ကြီးလွန်းလျှင် (သို့) တိုက်ရိုက်ဒေါင်းမရလျှင် Link အား Hyperlink စာသားဖြင့် ဖျောက်၍ ပို့မည်
         if file_size > 0:
             caption += f"\n\n📦 <b>File size: {file_size // 1024 // 1024}MB</b>"
         caption += f'\n\n⚠️ ဗီဒီယိုကို တိုက်ရိုက်ပေးပို့ရန် အဆင်မပြေပါသဖြင့် <a href="{video_url}"><b>[ ဒေါင်းလုဒ်ရန် နှိပ်ပါ ]</b></a>'
 
-        bot.send_message(
-            message.chat.id,
-            caption,
-            parse_mode="HTML",
-            reply_markup=markup,
-            disable_web_page_preview=True
-        )
+        bot.send_message(message.chat.id, caption, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
         try: bot.delete_message(message.chat.id, status_msg.message_id)
         except: pass
 
@@ -227,27 +200,31 @@ def handle_tiktok(message):
             bot.delete_message(message.chat.id, status_msg.message_id)
         except: pass
 
-# ---------- Web Server အပိုင်း ----------
+# ---------- Health Check Web Server ----------
 
 @app.route('/')
 def index():
-    return "Bot is running!"
+    # GitHub Action / Render အိပ်မပျော်အောင် ကျန်ရစ်စေမယ့် ရိုးရိုး Health endpoint
+    return "Bot is running perfectly!"
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return 'OK', 200
-    return 'OK', 200
-
-if __name__ == "__main__":
-    logger.info("Starting bot web server...")
-    
-    # Flask ရဲ့ မူရင်း စာသားတွေကို log ထဲမှာ ဖျောက်ထားဖို့
+def run_flask():
     import logging
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False, use_reloader=False)
+
+if __name__ == "__main__":
+    logger.info("Initializing Bot with Polling Mode...")
     
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+    # ၁။ ကန့်လန့်ခံနေတဲ့ Webhook အဟောင်းတွေကို Telegram ဆီကနေ အရင်ဖျက်ထုတ်ပါတယ်
+    bot.remove_webhook()
+    time.sleep(1)
+    
+    # ၂။ Web Server (Flask) ကို Thread ခွဲပြီး သီးသန့် နောက်ကွယ်ကနေ Run ပေးလိုက်ပါတယ်
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    # ၃။ Bot ရဲ့ Polling ကို အဓိက Run ခိုင်းလိုက်ပါတယ် (Crash ဖြစ်ရင် Auto ပြန်ထစေဖို့ infinity_polling သုံးထားပါတယ်)
+    logger.info("Bot Polling has been started successfully!")
+    bot.infinity_polling(timeout=60, long_polling_timeout=60)
+        
