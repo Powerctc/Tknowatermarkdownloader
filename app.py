@@ -69,43 +69,54 @@ def send_welcome(message):
     bot.send_message(message.chat.id, text, parse_mode="MarkdownV2", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: True)
-def handle_tiktok(message):
+def handle_tiktok_bot3(message):
     if not message.text or message.text.startswith('/'): return
-
-    original_link = message.text.strip().split('?')[0]
+    raw_link = message.text.strip()
+    original_link = raw_link.split('?')[0]
     if "tiktok.com" not in original_link.lower():
         return bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
 
     status_msg = bot.reply_to(message, "⏳ ဗီဒီယို ရှာနေပါတယ်...")
+    video_url = None
+    title = "TikTok Video"
+    desc = ""
+    author = ""
 
-    video_url, title = None, "TikTok Video"
     apis = [
-        "https://www.tikwm.com/api/",
-        f"https://api.tiklydown.eu.org/api/download?url={original_link}",
-        f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}"
+        ("https://www.tikwm.com/api/", "POST"),
+        (f"https://api.tiklydown.eu.org/api/download?url={original_link}", "GET")
     ]
 
-    for api_url in apis:
+    for api_url, method in apis:
         try:
-            if "tikwm" in api_url:
-                r = requests.post(api_url, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=20)
-            else:
-                r = requests.get(api_url, headers=HEADERS, timeout=20)
-
-            v, t = extract_video_info_from_json(r.json())
-            if v:
-                video_url, title = v, t or title
-                break
-        except Exception as e:
-            logger.warning(f"API {api_url} failed: {e}")
-            continue
-
-        # ... (အပေါ်က API ကနေ video_url ရှာတဲ့အပိုင်း)
+            if method == "POST": r = requests.post(api_url, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=25)
+            else: r = requests.get(api_url, headers=HEADERS, timeout=25)
+            if r.status_code != 200: continue
+            data = r.json()
+            if data.get("code") == 0 and isinstance(data.get("data"), dict):
+                d = data["data"]
+                video_url = d.get("hdplay") or d.get("play")
+                desc = d.get("desc", "") or d.get("title", "")
+                author = d.get("author", {}).get("nickname", "")
+            elif data.get("video"):
+                v = data["video"]
+                video_url = v.get("noWatermark")
+                desc = v.get("title", "")
+                author = data.get("author", {}).get("nickname", "")
+            if video_url: break
+        except: continue
 
     if not video_url:
-        return bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ Link မှန်ရဲ့လား စစ်ပေးပါ။", message.chat.id, status_msg.message_id)
+        return bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။", message.chat.id, status_msg.message_id)
 
-    # 1. markup ကို try ရဲ့ အပြင်မှာ ကြိုတင် Initialize လုပ်ထားပါမယ် (Error မတက်စေရန်)
+    clean_desc = clean_caption(desc or title)
+    original_hashtags = extract_hashtags_from_desc(desc)
+    author_line = f"👤 <b>{escape_html(author)}</b>\n" if author else ""
+    
+    # Caption Formatting 
+    caption = f"{author_line}🎬 <b>{escape_html(clean_desc)}</b>\n\nFrom original #bfaAi #bfastream {original_hashtags}"
+
+    # Buttons ပြင်ဆင်ခြင်း
     markup = InlineKeyboardMarkup()
     markup.add(
         InlineKeyboardButton("🔗 Original Link", url=original_link),
@@ -113,43 +124,27 @@ def handle_tiktok(message):
     )
 
     try:
-        bot.edit_message_text("📥 ဒေါင်းနေပါတယ်...", message.chat.id, status_msg.message_id)
-
-        # File size စစ်မယ်
-        head = requests.head(video_url, headers=HEADERS, timeout=10)
-        file_size = int(head.headers.get('content-length', 0))
-
-        # ၂။ Caption နှင့် Hashtag ပုံစံချခြင်း
-        safe_title = escape_markdown_v2(title)
-        caption = f"🎬 *{safe_title}*\n\nFrom original \#bfaAi \#bfastream"
-
-        # ၅၀ MB အောက်ဆို ဗီဒီယို တိုက်ရိုက်ပို့မယ်
-        if file_size < 50 * 1024 * 1024: 
-            filename = download_file(video_url)
-            if filename:
-                with open(filename, 'rb') as video:
-                    bot.send_video(message.chat.id, video, caption=caption, parse_mode="MarkdownV2", reply_markup=markup)
-                os.remove(filename)
-            else: raise Exception("Download failed")
+        filename = download_file(video_url)
+        if filename:
+            with open(filename, 'rb') as video:
+                # ဗီဒီယို အောင်မြင်စွာ ပို့နိုင်လျှင် Button ပါတစ်ခါတည်း ထည့်ပေးမည်
+                bot.send_video(message.chat.id, video, caption=caption, parse_mode="HTML", reply_markup=markup)
+            os.remove(filename)
+            bot.delete_message(message.chat.id, status_msg.message_id)
         else:
-            # ဗီဒီယို ဖိုင်ကြီးလွန်းရင် စာသားပဲ ပို့မယ်
-            safe_video_url = escape_markdown_v2(video_url)
-            caption += f"\n\n📦 File ကြီးလို့ Link ပဲပို့လိုက်ပါတယ်:\n{safe_video_url}"
-            bot.send_message(message.chat.id, caption, parse_mode="MarkdownV2", reply_markup=markup)
-
-        bot.delete_message(message.chat.id, status_msg.message_id)
-
+            raise Exception("Download returned None")
+            
     except Exception as e:
-        logger.exception("Send video failed")
-        safe_video_url = escape_markdown_v2(video_url)
-        
-        # အပေါ်မှာ markup ကို ကြိုကြေညာထားလို့ အခု except ထဲမှာ သုံးရင် Error မတက်တော့ပါဘူး
-        fallback_caption = f"⚠️ ပို့လို့မရပါ။ Link:\n{safe_video_url}\n\nFrom original \#bfaAi \#bfastream"
-        bot.send_message(message.chat.id, fallback_caption, parse_mode="MarkdownV2", reply_markup=markup)
+        logger.error(f"Send failed: {e}")
+        # ဒေါင်းလို့မရတဲ့ အခြေအနေ (Fallback) မှာ Link အရှည်ကြီး မပြတော့ဘဲ စာသားထဲမှာ ဝှက်ပြီး ပို့ပေးပါမယ်
+        fallback_text = (
+            f"⚠️ ဗီဒီယိုကို တိုက်ရိုက်ပေးပို့ရန် အဆင်မပြေပါသဖြင့် အောက်ပါ <a href='{video_url}'><b>[ ဒေါင်းလုဒ် Link ]</b></a> ကို နှိပ်၍ ရယူနိုင်ပါသည်။\n\n"
+            f"{caption}"
+        )
+        bot.send_message(message.chat.id, fallback_text, parse_mode="HTML", reply_markup=markup)
         try:
             bot.delete_message(message.chat.id, status_msg.message_id)
         except: pass
-    
 
 @app.route('/')
 def index():
