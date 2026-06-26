@@ -132,7 +132,6 @@ def handle_tiktok(message):
         (f"https://tikdown.org/getAjax?url={original_link}", "GET"),
         (f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}", "GET")
     ]
-
         for api_url, method in apis:
         try:
             if method == "POST":
