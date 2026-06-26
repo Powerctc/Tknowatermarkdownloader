@@ -22,8 +22,9 @@ bot = telebot.TeleBot(BOT_TOKEN, threaded=True, num_threads=4)
 app = Flask(__name__)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Referer": "https://www.tiktok.com/"
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "Referer": "https://www.tiktok.com/",
+    "Accept": "application/json, text/plain, */*"
 }
 
 def extract_hashtags_from_desc(desc):
@@ -34,8 +35,19 @@ def extract_hashtags_from_desc(desc):
 def clean_caption(desc):
     if not desc: return "TikTok Video"
     desc = re.sub(r'http\S+', '', desc)
+    desc = re.sub(r'@\w+', '', desc) # Remove mentions
     desc = re.sub(r'\s+', ' ', desc).strip()
     return desc[:150] if desc else "TikTok Video"
+
+def expand_tiktok_url(url):
+    """vt.tiktok.com တို့ကို full URL အဖြစ် ပြောင်း"""
+    try:
+        if 'vt.tiktok.com' in url or 'vm.tiktok.com' in url:
+            r = requests.head(url, headers=HEADERS, allow_redirects=True, timeout=10)
+            return r.url
+        return url
+    except:
+        return url
 
 def download_file(url, filename="video.mp4"):
     try:
@@ -51,6 +63,8 @@ def download_file(url, filename="video.mp4"):
 
 def extract_video_info_from_json(data):
     if not isinstance(data, dict): return None, None, "", ""
+    
+    # TikWM format
     if data.get("code") == 0 and isinstance(data.get("data"), dict):
         d = data["data"]
         video_url = d.get("hdplay") or d.get("play") or d.get("wmplay")
@@ -58,17 +72,21 @@ def extract_video_info_from_json(data):
         desc = d.get("desc", "") or d.get("title", "")
         author = d.get("author", {}).get("nickname", "") or d.get("author", {}).get("unique_id", "")
         return video_url, title, desc, author
+    
+    # TikLyDown format
     if data.get("video") and isinstance(data["video"], dict):
         v = data["video"]
-        video_url = v.get("noWatermark") or v.get("watermark")
-        title = v.get("title", "")
-        desc = v.get("title", "")
-        author = data.get("author", {}).get("nickname", "")
+        video_url = v.get("noWatermark") or v.get("watermark") or v.get("hd") or v.get("sd")
+        title = v.get("title", "") or data.get("title", "")
+        desc = data.get("desc", "") or title
+        author = data.get("author", {}).get("nickname", "") or data.get("author", {}).get("unique_id", "")
         return video_url, title, desc, author
-    for key in ("video", "url", "play", "hd", "downloadUrl"):
+    
+    # Generic format
+    for key in ("video", "url", "play", "hd", "downloadUrl", "nowm"):
         v = data.get(key)
         if isinstance(v, str) and v.startswith("http"):
-            return v, data.get("title", ""), data.get("desc", ""), ""
+            return v, data.get("title", ""), data.get("desc", ""), data.get("author", "")
     return None, None, "", ""
 
 @bot.message_handler(commands=['start', 'help'])
@@ -90,16 +108,28 @@ def send_welcome(message):
 def handle_tiktok(message):
     if not message.text or message.text.startswith('/'): return
 
-    original_link = message.text.strip().split('?')[0]
-    if "tiktok.com" not in original_link.lower():
+    user_link = message.text.strip()
+    
+    # Link စစ်ပြီး expand လုပ်
+    if not any(x in user_link.lower() for x in ["tiktok.com", "douyin"]):
         return bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
+    
+    # User message ကို ဖျက်မယ်
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as e:
+        logger.warning(f"Cannot delete user message: {e}")
 
-    status_msg = bot.reply_to(message, "⏳ ဗီဒီယို ရှာနေပါတယ်...")
+    original_link = expand_tiktok_url(user_link.split('?')[0])
+    status_msg = bot.send_message(message.chat.id, "⏳ ဗီဒီယို ရှာနေပါတယ်...")
 
     video_url, title, desc, author = None, "TikTok Video", "", ""
+    
+    # API List - 4 ခုထိ တိုးထားတယ်
     apis = [
         ("https://www.tikwm.com/api/", "POST"),
         (f"https://api.tiklydown.eu.org/api/download?url={original_link}", "GET"),
+        (f"https://tikdown.org/getAjax?url={original_link}", "GET"),
         (f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}", "GET")
     ]
 
@@ -110,8 +140,9 @@ def handle_tiktok(message):
             else:
                 r = requests.get(api_url, headers=HEADERS, timeout=20)
 
-            v, t, d, a = extract_video_info_from_json(r.json())
-            if v:
+            data = r.json()
+            v, t, d, a = extract_video_info_from_json(data)
+            if v and 'tiktokcdn' in v:
                 video_url, title, desc, author = v, t or title, d, a
                 logger.info(f"Got video from {api_url}")
                 break
@@ -120,7 +151,7 @@ def handle_tiktok(message):
             continue
 
     if not video_url:
-        try: bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ Link မှန်ရဲ့လား စစ်ပေးပါ။", message.chat.id, status_msg.message_id)
+        try: bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ Private ဗီဒီယို သို့မဟုတ် Link မှားနေနိုင်ပါတယ်။", message.chat.id, status_msg.message_id)
         except: pass
         return
 
@@ -136,7 +167,7 @@ def handle_tiktok(message):
 
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(
-            InlineKeyboardButton("🔗 Original Link", url=message.text.strip()),
+            InlineKeyboardButton("🔗 Original Link", url=user_link),
             InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
         )
 
@@ -151,6 +182,7 @@ def handle_tiktok(message):
 
         caption = f"{author_line}🎬 <b>{caption_text}</b>\n\n⚡ {final_hashtags}"
 
+        # 50MB အောက်ဆို video ပို့
         if 0 < file_size < 50 * 1024 * 1024:
             filename = download_file(video_url)
             if filename and os.path.exists(filename):
@@ -167,6 +199,7 @@ def handle_tiktok(message):
                 except: pass
                 return
 
+        # File ကြီးရင် link ပဲ ပို့
         if file_size > 0:
             caption += f"\n\n📦 <b>File size: {file_size // 1024 // 1024}MB</b>"
         caption += f'\n<a href="{video_url}">⬇️ ဒေါင်းလုဒ်ရန် နှိပ်ပါ</a>'
@@ -183,8 +216,8 @@ def handle_tiktok(message):
 
     except Exception as e:
         logger.exception(f"Send video failed: {e}")
-        fallback_caption = f"⚠️ ဗီဒီယို တိုက်ရိုက်ပို့လို့ မရပါ။\n\n{caption}"
         try:
+            fallback_caption = f"⚠️ ဗီဒီယို တိုက်ရိုက်ပို့လို့ မရပါ။\n\n{caption}"
             bot.send_message(message.chat.id, fallback_caption, parse_mode="HTML", reply_markup=markup)
             bot.delete_message(message.chat.id, status_msg.message_id)
         except: pass
