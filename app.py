@@ -133,21 +133,97 @@ def handle_tiktok(message):
         (f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}", "GET")
     ]
 
-    for api_url, method in apis:
+        for api_url, method in apis:
         try:
             if method == "POST":
                 r = requests.post(api_url, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=20)
             else:
                 r = requests.get(api_url, headers=HEADERS, timeout=20)
 
+            if r.status_code != 200: continue
             data = r.json()
             v, t, d, a = extract_video_info_from_json(data)
-            if v and 'tiktokcdn' in v:
+            
+            # ပြင်ဆင်ချက် ၁ - 'tiktokcdn' in v ဆိုတဲ့ ကန့်သတ်ချက်ကို ဖြုတ်လိုက်ပါတယ် (တခြား CDN တွေပါ အလုပ်လုပ်စေရန်)
+            if v:
                 video_url, title, desc, author = v, t or title, d, a
                 logger.info(f"Got video from {api_url}")
                 break
         except Exception as e:
             logger.warning(f"API {api_url} failed: {e}")
+            continue
+
+    if not video_url:
+        try: bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ Private ဗီဒီယို သို့မဟုတ် Link မှားနေနိုင်ပါတယ်။", message.chat.id, status_msg.message_id)
+        except: pass
+        return
+
+    try:
+        try: bot.edit_message_text("📥 ဒေါင်းနေပါတယ်...", message.chat.id, status_msg.message_id)
+        except: pass
+
+        # ပြင်ဆင်ချက် ၂ - တခြားနိုင်ငံ CDN link တွေ ဒေါင်းရင် Block မခံရအောင် download_file ထဲမှာ သုံးသလို requests stream ကို သုံးပြီး size စစ်ပါမယ်
+        file_size = 0
+        try:
+            with requests.get(video_url, headers=HEADERS, stream=True, timeout=15) as r:
+                if r.status_code == 200:
+                    file_size = int(r.headers.get('content-length', 0))
+        except Exception as e:
+            logger.warning(f"Failed to get content-length: {e}")
+
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            InlineKeyboardButton("🔗 Original Link", url=user_link),
+            InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
+        )
+
+        clean_desc = clean_caption(desc or title)
+        original_hashtags = extract_hashtags_from_desc(desc)
+        author_line = f"👤 <b>{escape_html(author)}</b>\n" if author else ""
+        caption_text = escape_html(clean_desc)
+
+        final_hashtags = "#BFA_STREAM_TV #TikTok #NoWatermark"
+        if original_hashtags:
+            final_hashtags += f" {original_hashtags}"
+
+        caption = f"{author_line}🎬 <b>{caption_text}</b>\n\n⚡ {final_hashtags}"
+
+        # ပြင်ဆင်ချက် ၃ - file_size စစ်မရရင်လည်း (0 ဖြစ်နေရင်လည်း) ဒေါင်းကြည့်ဖို့ ကြိုးစားခိုင်းပါမယ်
+        if file_size < 50 * 1024 * 1024:
+            filename = download_file(video_url)
+            if filename and os.path.exists(filename):
+                with open(filename, 'rb') as video:
+                    bot.send_video(
+                        message.chat.id,
+                        video,
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=markup
+                    )
+                os.remove(filename)
+                try: bot.delete_message(message.chat.id, status_msg.message_id)
+                except: pass
+                return
+
+        # File ကြီးရင် သို့မဟုတ် ဒေါင်းမရခဲ့ရင် link ပို့မည့်အပိုင်း
+        if file_size > 0:
+            caption += f"\n\n📦 <b>File size: {file_size // 1024 // 1024}MB</b>"
+        caption += f'\n<a href="{video_url}">⬇️ ဒေါင်းလုဒ်ရန် နှိပ်ပါ</a>'
+
+        bot.send_message(
+            message.chat.id,
+            caption,
+            parse_mode="HTML",
+            reply_markup=markup,
+            disable_web_page_preview=True
+        )
+        try: bot.delete_message(message.chat.id, status_msg.message_id)
+        except: pass
+
+    except Exception as e:
+        logger.exception(f"Send video failed: {e}")
+        # ... (ကျန်တဲ့ fallback အပိုင်းအတိုင်း ထားနိုင်ပါတယ်)
+
             continue
 
     if not video_url:
