@@ -3,16 +3,12 @@ import time
 import logging
 import requests
 import re
-from flask import Flask
+from flask import Flask, request
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-def escape_html(text: str) -> str:
-    if not text: return ""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -27,6 +23,10 @@ HEADERS = {
     "Accept": "application/json, text/plain, */*"
 }
 
+def escape_html(text: str) -> str:
+    if not text: return ""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 def extract_hashtags_from_desc(desc):
     if not desc: return ""
     hashtags = re.findall(r'#\w+', desc)
@@ -35,12 +35,12 @@ def extract_hashtags_from_desc(desc):
 def clean_caption(desc):
     if not desc: return "TikTok Video"
     desc = re.sub(r'http\S+', '', desc)
-    desc = re.sub(r'@\w+', '', desc) # Remove mentions
+    desc = re.sub(r'@\w+', '', desc)  # Remove mentions
     desc = re.sub(r'\s+', ' ', desc).strip()
     return desc[:150] if desc else "TikTok Video"
 
 def expand_tiktok_url(url):
-    """vt.tiktok.com တို့ကို full URL အဖြစ် ပြောင်း"""
+    """vt.tiktok.com တို့ကို full URL အဖြစ် ပြောင်းလဲပေးခြင်း"""
     try:
         if 'vt.tiktok.com' in url or 'vm.tiktok.com' in url:
             r = requests.head(url, headers=HEADERS, allow_redirects=True, timeout=10)
@@ -50,6 +50,7 @@ def expand_tiktok_url(url):
         return url
 
 def download_file(url, filename="video.mp4"):
+    """ဗီဒီယိုကို Server ထဲသို့ Download ဆွဲယူခြင်း"""
     try:
         with requests.get(url, headers=HEADERS, stream=True, timeout=120) as r:
             r.raise_for_status()
@@ -89,6 +90,8 @@ def extract_video_info_from_json(data):
             return v, data.get("title", ""), data.get("desc", ""), data.get("author", "")
     return None, None, "", ""
 
+# ---------- Bot handlers ----------
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     text = (
@@ -110,11 +113,9 @@ def handle_tiktok(message):
 
     user_link = message.text.strip()
     
-    # Link စစ်ပြီး expand လုပ်
     if not any(x in user_link.lower() for x in ["tiktok.com", "douyin"]):
         return bot.reply_to(message, "💡 TikTok Link တစ်ခုခုကို ပို့ပေးပါ။")
     
-    # User message ကို ဖျက်မယ်
     try:
         bot.delete_message(message.chat.id, message.message_id)
     except Exception as e:
@@ -125,14 +126,14 @@ def handle_tiktok(message):
 
     video_url, title, desc, author = None, "TikTok Video", "", ""
     
-    # API List - 4 ခုထိ တိုးထားတယ်
     apis = [
         ("https://www.tikwm.com/api/", "POST"),
         (f"https://api.tiklydown.eu.org/api/download?url={original_link}", "GET"),
         (f"https://tikdown.org/getAjax?url={original_link}", "GET"),
         (f"https://tdownv4.sl-bjs.workers.dev/?down={original_link}", "GET")
     ]
-        for api_url, method in apis:
+
+    for api_url, method in apis:
         try:
             if method == "POST":
                 r = requests.post(api_url, data={"url": original_link, "hd": 1}, headers=HEADERS, timeout=20)
@@ -143,7 +144,6 @@ def handle_tiktok(message):
             data = r.json()
             v, t, d, a = extract_video_info_from_json(data)
             
-            # ပြင်ဆင်ချက် ၁ - 'tiktokcdn' in v ဆိုတဲ့ ကန့်သတ်ချက်ကို ဖြုတ်လိုက်ပါတယ် (တခြား CDN တွေပါ အလုပ်လုပ်စေရန်)
             if v:
                 video_url, title, desc, author = v, t or title, d, a
                 logger.info(f"Got video from {api_url}")
@@ -157,11 +157,28 @@ def handle_tiktok(message):
         except: pass
         return
 
+    # Markup ခလုတ်များကို try အပြင်ဘက်မှာ ကြိုတင်ပြင်ဆင်ထားပါသည် (Error မတက်စေရန်)
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("🔗 Original Link", url=user_link),
+        InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
+    )
+
+    clean_desc = clean_caption(desc or title)
+    original_hashtags = extract_hashtags_from_desc(desc)
+    author_line = f"👤 <b>{escape_html(author)}</b>\n" if author else ""
+    caption_text = escape_html(clean_desc)
+
+    final_hashtags = "#BFA_STREAM_TV #TikTok #NoWatermark #bfaAi #bfastream"
+    if original_hashtags:
+        final_hashtags += f" {original_hashtags}"
+
+    caption = f"{author_line}🎬 <b>{caption_text}</b>\n\n⚡ {final_hashtags}"
+
     try:
         try: bot.edit_message_text("📥 ဒေါင်းနေပါတယ်...", message.chat.id, status_msg.message_id)
         except: pass
 
-        # ပြင်ဆင်ချက် ၂ - တခြားနိုင်ငံ CDN link တွေ ဒေါင်းရင် Block မခံရအောင် download_file ထဲမှာ သုံးသလို requests stream ကို သုံးပြီး size စစ်ပါမယ်
         file_size = 0
         try:
             with requests.get(video_url, headers=HEADERS, stream=True, timeout=15) as r:
@@ -170,24 +187,7 @@ def handle_tiktok(message):
         except Exception as e:
             logger.warning(f"Failed to get content-length: {e}")
 
-        markup = InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            InlineKeyboardButton("🔗 Original Link", url=user_link),
-            InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
-        )
-
-        clean_desc = clean_caption(desc or title)
-        original_hashtags = extract_hashtags_from_desc(desc)
-        author_line = f"👤 <b>{escape_html(author)}</b>\n" if author else ""
-        caption_text = escape_html(clean_desc)
-
-        final_hashtags = "#BFA_STREAM_TV #TikTok #NoWatermark"
-        if original_hashtags:
-            final_hashtags += f" {original_hashtags}"
-
-        caption = f"{author_line}🎬 <b>{caption_text}</b>\n\n⚡ {final_hashtags}"
-
-        # ပြင်ဆင်ချက် ၃ - file_size စစ်မရရင်လည်း (0 ဖြစ်နေရင်လည်း) ဒေါင်းကြည့်ဖို့ ကြိုးစားခိုင်းပါမယ်
+        # 50MB အောက်ဆို ဗီဒီယို တိုက်ရိုက်ပို့မည်
         if file_size < 50 * 1024 * 1024:
             filename = download_file(video_url)
             if filename and os.path.exists(filename):
@@ -204,80 +204,10 @@ def handle_tiktok(message):
                 except: pass
                 return
 
-        # File ကြီးရင် သို့မဟုတ် ဒေါင်းမရခဲ့ရင် link ပို့မည့်အပိုင်း
+        # File ကြီးလွန်းလျှင် (သို့) တိုက်ရိုက်ဒေါင်းမရလျှင် Link အား Hyperlink စာသားဖြင့် ဖျောက်၍ ပို့မည်
         if file_size > 0:
             caption += f"\n\n📦 <b>File size: {file_size // 1024 // 1024}MB</b>"
-        caption += f'\n<a href="{video_url}">⬇️ ဒေါင်းလုဒ်ရန် နှိပ်ပါ</a>'
-
-        bot.send_message(
-            message.chat.id,
-            caption,
-            parse_mode="HTML",
-            reply_markup=markup,
-            disable_web_page_preview=True
-        )
-        try: bot.delete_message(message.chat.id, status_msg.message_id)
-        except: pass
-
-    except Exception as e:
-        logger.exception(f"Send video failed: {e}")
-        # ... (ကျန်တဲ့ fallback အပိုင်းအတိုင်း ထားနိုင်ပါတယ်)
-
-            continue
-
-    if not video_url:
-        try: bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ Private ဗီဒီယို သို့မဟုတ် Link မှားနေနိုင်ပါတယ်။", message.chat.id, status_msg.message_id)
-        except: pass
-        return
-
-    try:
-        try: bot.edit_message_text("📥 ဒေါင်းနေပါတယ်...", message.chat.id, status_msg.message_id)
-        except: pass
-
-        try:
-            head = requests.head(video_url, headers=HEADERS, timeout=10, allow_redirects=True)
-            file_size = int(head.headers.get('content-length', 0))
-        except:
-            file_size = 0
-
-        markup = InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            InlineKeyboardButton("🔗 Original Link", url=user_link),
-            InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
-        )
-
-        clean_desc = clean_caption(desc or title)
-        original_hashtags = extract_hashtags_from_desc(desc)
-        author_line = f"👤 <b>{escape_html(author)}</b>\n" if author else ""
-        caption_text = escape_html(clean_desc)
-
-        final_hashtags = "#BFA_STREAM_TV #TikTok #NoWatermark"
-        if original_hashtags:
-            final_hashtags += f" {original_hashtags}"
-
-        caption = f"{author_line}🎬 <b>{caption_text}</b>\n\n⚡ {final_hashtags}"
-
-        # 50MB အောက်ဆို video ပို့
-        if 0 < file_size < 50 * 1024 * 1024:
-            filename = download_file(video_url)
-            if filename and os.path.exists(filename):
-                with open(filename, 'rb') as video:
-                    bot.send_video(
-                        message.chat.id,
-                        video,
-                        caption=caption,
-                        parse_mode="HTML",
-                        reply_markup=markup
-                    )
-                os.remove(filename)
-                try: bot.delete_message(message.chat.id, status_msg.message_id)
-                except: pass
-                return
-
-        # File ကြီးရင် link ပဲ ပို့
-        if file_size > 0:
-            caption += f"\n\n📦 <b>File size: {file_size // 1024 // 1024}MB</b>"
-        caption += f'\n<a href="{video_url}">⬇️ ဒေါင်းလုဒ်ရန် နှိပ်ပါ</a>'
+        caption += f'\n\n⚠️ ဗီဒီယိုကို တိုက်ရိုက်ပေးပို့ရန် အဆင်မပြေပါသဖြင့် <a href="{video_url}"><b>[ ဒေါင်းလုဒ်ရန် နှိပ်ပါ ]</b></a>'
 
         bot.send_message(
             message.chat.id,
@@ -292,10 +222,12 @@ def handle_tiktok(message):
     except Exception as e:
         logger.exception(f"Send video failed: {e}")
         try:
-            fallback_caption = f"⚠️ ဗီဒီယို တိုက်ရိုက်ပို့လို့ မရပါ။\n\n{caption}"
-            bot.send_message(message.chat.id, fallback_caption, parse_mode="HTML", reply_markup=markup)
+            fallback_caption = f"⚠️ ဗီဒီယို တိုက်ရိုက်ပို့လို့ မရပါ။ <a href='{video_url}'><b>[ ဒေါင်းလုဒ်ရန် နှိပ်ပါ ]</b></a>\n\n{caption}"
+            bot.send_message(message.chat.id, fallback_caption, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
             bot.delete_message(message.chat.id, status_msg.message_id)
         except: pass
+
+# ---------- Web Server အပိုင်း ----------
 
 @app.route('/')
 def index():
@@ -311,7 +243,6 @@ def webhook():
     return 'OK', 200
 
 if __name__ == "__main__":
-    logger.info("Starting bot with polling...")
-    bot.remove_webhook()
-    time.sleep(1)
-    bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    logger.info("Starting bot web server...")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+        
