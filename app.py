@@ -29,7 +29,6 @@ def escape_markdown_v2(text: str) -> str:
 
 # ---------- Utils ----------
 def download_file(url, filename="video.mp4"):
-    """URL ကနေ file download ဆွဲမယ်. 50MB ထိ Telegram လက်ခံတယ်"""
     try:
         with requests.get(url, headers=HEADERS, stream=True, timeout=60) as r:
             r.raise_for_status()
@@ -43,16 +42,11 @@ def download_file(url, filename="video.mp4"):
 
 def extract_video_info_from_json(data):
     if not isinstance(data, dict): return None, None
-    # tikwm.com format
     if data.get("code") == 0 and isinstance(data.get("data"), dict):
         d = data["data"]
         return d.get("hdplay") or d.get("play"), d.get("title")
-
-    # tiklydown format
     if data.get("video") and isinstance(data["video"], dict):
         return data["video"].get("noWatermark"), data["video"].get("title")
-
-    # generic
     for key in ("video", "url", "play", "hd"):
         v = data.get(key)
         if isinstance(v, str) and v.startswith("http"):
@@ -109,7 +103,6 @@ def handle_tiktok(message):
     if not video_url:
         return bot.edit_message_text("❌ ဗီဒီယို ရှာမတွေ့ပါ။ Link မှန်ရဲ့လား စစ်ပေးပါ။", message.chat.id, status_msg.message_id)
 
-    # 50MB အောက် ဆို download ဆွဲပြီးပို့မယ်. ပိုကြီးရင် link ပဲပို့မယ်
     try:
         bot.edit_message_text("📥 ဒေါင်းနေပါတယ်...", message.chat.id, status_msg.message_id)
 
@@ -117,13 +110,19 @@ def handle_tiktok(message):
         head = requests.head(video_url, headers=HEADERS, timeout=10)
         file_size = int(head.headers.get('content-length', 0))
 
-        markup = InlineKeyboardMarkup().add(
+        # ၁။ Buttons ပြင်ဆင်ခြင်း (Original Link Button ထည့်ထားပါတယ်)
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("🔗 Original Link", url=original_link),
             InlineKeyboardButton("👥 Join Group", url="https://t.me/addlist/uO9JW9MOK-ZlM2M9")
         )
-        safe_title = escape_markdown(title, version=2)
-        caption = f"🎬 *{safe_title}*\n\n✅ Watermark Free • HD\n✨ @YourBotUsername"
 
-        if file_size < 50 * 1024: # 50MB
+        # ၂။ Caption နှင့် Hashtag ပုံစံချခြင်း
+        safe_title = escape_markdown_v2(title)
+        caption = f"🎬 *{safe_title}*\n\nFrom original \#bfaAi \#bfastream"
+
+        # ၅၀ MB အောက်ဆို ဗီဒီယို တိုက်ရိုက်ပို့မယ်
+        if file_size < 50 * 1024 * 1024: 
             filename = download_file(video_url)
             if filename:
                 with open(filename, 'rb') as video:
@@ -131,24 +130,30 @@ def handle_tiktok(message):
                 os.remove(filename)
             else: raise Exception("Download failed")
         else:
-            caption += f"\n\n📦 File ကြီးလို့ Link ပဲပို့လိုက်ပါတယ်:\n{video_url}"
+            # ဗီဒီယို ဖိုင်ကြီးလွန်းရင် (သို့) Fallback အတွက် စာသားပဲ ပို့မယ်
+            safe_video_url = escape_markdown_v2(video_url)
+            caption += f"\n\n📦 File ကြီးလို့ Link ပဲပို့လိုက်ပါတယ်:\n{safe_video_url}"
             bot.send_message(message.chat.id, caption, parse_mode="MarkdownV2", reply_markup=markup)
 
         bot.delete_message(message.chat.id, status_msg.message_id)
 
     except Exception as e:
         logger.exception("Send video failed")
-        bot.edit_message_text(f"⚠️ ပို့လို့မရပါ။ Link:\n{video_url}", message.chat.id, status_msg.message_id)
+        safe_video_url = escape_markdown_v2(video_url)
+        # Exception ဖြစ်သွားရင်လည်း ခလုတ်နဲ့ Caption ပုံစံမပျက် ပို့ပေးနိုင်အောင် ပြင်ဆင်ထားပါတယ်
+        fallback_caption = f"⚠️ ပို့လို့မရပါ။ Link:\n{safe_video_url}\n\nFrom original \#bfaAi \#bfastream"
+        bot.send_message(message.chat.id, fallback_caption, parse_mode="MarkdownV2", reply_markup=markup)
+        try:
+            bot.delete_message(message.chat.id, status_msg.message_id)
+        except: pass
 
-# Render.com Health Check အတွက်
 @app.route('/')
 def index():
     return "Bot is running!"
 
 if __name__ == "__main__":
     logger.info("Starting bot with polling...")
-    # Webhook ဖျက်မယ်
     bot.remove_webhook()
     time.sleep(1)
-    # Polling စ
     bot.infinity_polling(timeout=60, long_polling_timeout=60)
+                                  
