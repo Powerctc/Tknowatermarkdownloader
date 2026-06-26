@@ -244,5 +244,10 @@ def webhook():
 
 if __name__ == "__main__":
     logger.info("Starting bot web server...")
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-        
+    
+    # Flask ရဲ့ မူရင်း စာသားတွေကို log ထဲမှာ ဖျောက်ထားဖို့
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
