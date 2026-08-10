@@ -3,12 +3,17 @@ name: Run FOTMOV TK Bot 24/7
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *' # 5 မိနစ်တစ်ခါ restart
+    - cron: '0 */5 * * *' # ၅ နာရီတစ်ခါမှ restart လုပ်မည်
+
+# ယခင် run နေသော bot ကို အလိုအလျောက် ပိတ်ပြီး အသစ်ပြန်စစေရန်
+concurrency:
+  group: fotmov-bot-group
+  cancel-in-progress: true
 
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 350 # 6 နာရီနီးပါး run ခိုင်းထားမယ်
+    timeout-minutes: 300 # ၅ နာရီပြည့်ပါက အလိုအလျောက် ရပ်မည်
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,3 +24,4 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: python app.py
+        
